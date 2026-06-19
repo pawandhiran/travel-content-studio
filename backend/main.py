@@ -59,6 +59,17 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    @app.websocket("/ws/events")
+    async def websocket_endpoint(websocket):
+        await event_bus.connect(websocket)
+        try:
+            while True:
+                await websocket.receive_text()
+        except Exception:
+            pass
+        finally:
+            await event_bus.disconnect(websocket)
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -69,8 +80,6 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def log_requests(request: Request, call_next):
-        if request.url.path.startswith("/ws"):
-            return await call_next(request)
         start = time.time()
         response = await call_next(request)
         duration = time.time() - start
@@ -91,17 +100,6 @@ def create_app() -> FastAPI:
         )
 
     app.include_router(create_api_router())
-
-    @app.websocket("/ws/events")
-    async def websocket_endpoint(websocket):
-        await event_bus.connect(websocket)
-        try:
-            while True:
-                await websocket.receive_text()
-        except Exception:
-            pass
-        finally:
-            await event_bus.disconnect(websocket)
 
     return app
 

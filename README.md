@@ -42,6 +42,14 @@ AI-powered local workstation that transforms travel media into polished content 
 - NVIDIA RTX 4050 6GB+ (Windows) or Apple M1/M2/M3/M4 (macOS)
 - 20GB+ free disk space
 
+## Quick Launch
+
+### macOS
+Double-click `Travel Content Studio.command` or the `.app` bundle on your Desktop.
+
+### Windows
+Double-click `Travel Content Studio.bat` or run `scripts\create-shortcut.bat` to create Desktop and Start Menu shortcuts.
+
 ## Development Setup
 
 ### Prerequisites

@@ -37,8 +37,15 @@ export class BackendManager {
     console.log(`[BackendManager] Starting backend from: ${backendPath}`)
 
     if (is.dev) {
-      this.process = spawn(pythonCmd, ['main.py'], {
-        cwd: join(app.getAppPath(), 'backend'),
+      const backendDir = join(app.getAppPath(), 'backend')
+      const venvPython = isWindows
+        ? join(backendDir, '.venv', 'Scripts', 'python.exe')
+        : join(backendDir, '.venv', 'bin', 'python3')
+      const usePython = require('fs').existsSync(venvPython) ? venvPython : pythonCmd
+      console.log(`[BackendManager] Using Python: ${usePython}`)
+
+      this.process = spawn(usePython, ['main.py'], {
+        cwd: backendDir,
         stdio: ['pipe', 'pipe', 'pipe'],
         env: getSpawnEnv()
       })
