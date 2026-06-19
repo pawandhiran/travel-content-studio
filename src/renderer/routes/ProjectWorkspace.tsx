@@ -24,13 +24,30 @@ export function ProjectWorkspace() {
   if (error) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4">
-        <p className="text-red-400">Failed to load project: {error}</p>
-        <button
-          onClick={() => navigate('/projects')}
-          className="rounded-lg bg-gray-800 px-4 py-2 text-sm text-gray-300 hover:bg-gray-700"
-        >
-          Back to Projects
-        </button>
+        <div className="rounded-xl border border-red-900/50 bg-red-950/30 px-6 py-4 text-center">
+          <p className="font-medium text-red-400">Failed to load project</p>
+          <p className="mt-1 max-w-md text-sm text-red-300/70">
+            {error === 'Failed to fetch'
+              ? 'The backend server is not responding. It may have crashed or is still processing a previous request.'
+              : error}
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={() => {
+              if (id) fetchProject(id)
+            }}
+            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+          >
+            Retry
+          </button>
+          <button
+            onClick={() => navigate('/projects')}
+            className="rounded-lg bg-gray-800 px-4 py-2 text-sm text-gray-300 hover:bg-gray-700"
+          >
+            Back to Projects
+          </button>
+        </div>
       </div>
     )
   }

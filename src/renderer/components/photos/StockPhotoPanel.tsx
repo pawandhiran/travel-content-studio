@@ -4,6 +4,7 @@ import {
   Camera,
   Sparkles,
   Download,
+  FolderOpen,
   ChevronDown,
   ChevronUp,
   AlertTriangle,
@@ -173,6 +174,17 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
 
   const results = jobStatus?.result
 
+  const handleOpenFolder = useCallback(async () => {
+    if (!results?.package_path) return
+    const folderPath = results.package_path.replace(/\/[^/]+$/, '')
+    try {
+      // @ts-expect-error -- window.api provided by preload
+      await window.api.openPath(folderPath)
+    } catch {
+      window.open(`file://${folderPath}`, '_blank')
+    }
+  }, [results])
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
       <div className="flex items-center justify-between">
@@ -216,8 +228,19 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
                 key={`${path}-${idx}`}
                 className="group relative overflow-hidden rounded-xl border border-gray-800 bg-gray-900/50"
               >
-                <div className="flex aspect-square items-center justify-center bg-gray-800/50">
-                  <Camera className="h-8 w-8 text-gray-600" />
+                <div className="aspect-square overflow-hidden bg-gray-800/50">
+                  <img
+                    src={`file://${path}`}
+                    alt={path.split('/').pop() || 'Photo'}
+                    className="h-full w-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none'
+                      e.currentTarget.parentElement!.classList.add('flex', 'items-center', 'justify-center')
+                      const icon = document.createElement('div')
+                      icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>'
+                      e.currentTarget.parentElement!.appendChild(icon)
+                    }}
+                  />
                 </div>
                 <div className="space-y-1 p-2">
                   <p className="truncate text-xs text-gray-400" title={path}>
@@ -451,15 +474,32 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
             ))}
           </div>
 
-          {/* Download Button */}
+          {/* Output Path & Actions */}
           {results.package_path && (
-            <button
-              onClick={handleDownload}
-              className="flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-700"
-            >
-              <Download className="h-4 w-4" />
-              Download Package
-            </button>
+            <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
+              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-gray-500">
+                Output Location
+              </p>
+              <p className="mb-3 break-all rounded-lg bg-gray-800/70 px-3 py-2 font-mono text-xs text-gray-300">
+                {results.package_path.replace(/\/[^/]+$/, '')}
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleDownload}
+                  className="flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-700"
+                >
+                  <Download className="h-4 w-4" />
+                  Download Package
+                </button>
+                <button
+                  onClick={handleOpenFolder}
+                  className="flex items-center gap-2 rounded-xl border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-700"
+                >
+                  <FolderOpen className="h-4 w-4" />
+                  Open Folder
+                </button>
+              </div>
+            </div>
           )}
         </div>
       )}
