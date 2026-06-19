@@ -4,6 +4,8 @@ import { AppShell } from './components/layout/AppShell'
 import { Dashboard } from './routes/Dashboard'
 import { ProjectList } from './routes/ProjectList'
 import { ProjectWorkspace } from './routes/ProjectWorkspace'
+import { Logs } from './routes/Logs'
+import { Chat } from './routes/Chat'
 import { Settings } from './routes/Settings'
 import { Setup } from './routes/Setup'
 import { wsClient } from './services/websocketClient'
@@ -37,6 +39,7 @@ export default function App() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/projects" element={<ProjectList />} />
         <Route path="/projects/:id/*" element={<ProjectWorkspace />} />
+        <Route path="/logs" element={<Logs />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/setup" element={<Setup />} />
         <Route path="*" element={<Navigate to="/" replace />} />

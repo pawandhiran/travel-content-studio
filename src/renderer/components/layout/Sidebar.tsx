@@ -102,7 +102,18 @@ export function Sidebar() {
         )}
       </nav>
 
-      <div className="border-t border-gray-800 p-3">
+      <div className="border-t border-gray-800 p-3 space-y-1">
+        <button
+          onClick={() => navigate('/logs')}
+          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
+            location.pathname === '/logs'
+              ? 'bg-brand-600/20 text-brand-400'
+              : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+          }`}
+        >
+          <FileText className="h-4 w-4" />
+          Logs
+        </button>
         <button
           onClick={() => navigate('/settings')}
           className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${

@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Query, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from ulid import ULID
 
 from config import get_settings
@@ -26,8 +27,13 @@ from models.schemas import (
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
-def _project_to_response(project: Project) -> ProjectResponse:
-    tags = [pt.tag.name for pt in project.project_tags] if project.project_tags else []
+def _project_to_response(project: Project, include_tags: bool = False) -> ProjectResponse:
+    tags = []
+    if include_tags:
+        try:
+            tags = [pt.tag.name for pt in project.project_tags] if project.project_tags else []
+        except Exception:
+            tags = []
     return ProjectResponse(
         id=project.id,
         name=project.name,
@@ -63,7 +69,11 @@ async def list_projects(
     count_query = select(func.count()).select_from(query.subquery())
     total = await db.scalar(count_query) or 0
 
-    query = query.offset((page - 1) * per_page).limit(per_page)
+    query = (
+        query.options(selectinload(Project.project_tags).selectinload(ProjectTag.tag))
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+    )
     result = await db.execute(query)
     projects = result.scalars().unique().all()
 
@@ -109,7 +119,12 @@ async def create_project(
 @router.get("/{project_id}", response_model=ProjectResponse)
 async def get_project(project_id: str, db: AsyncSession = Depends(get_db)):
     """Get a single project by ID."""
-    project = await db.get(Project, project_id)
+    result = await db.execute(
+        select(Project)
+        .where(Project.id == project_id)
+        .options(selectinload(Project.project_tags).selectinload(ProjectTag.tag))
+    )
+    project = result.scalar_one_or_none()
     if not project or project.status == ProjectStatus.deleted:
         raise NotFoundError(f"Project {project_id} not found")
     return _project_to_response(project)

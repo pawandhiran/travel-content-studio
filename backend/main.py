@@ -3,6 +3,7 @@
 import asyncio
 import signal
 import sys
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -61,6 +62,20 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.middleware("http")
+    async def log_requests(request: Request, call_next):
+        start = time.time()
+        response = await call_next(request)
+        duration = time.time() - start
+        logger.info(
+            "http_request",
+            method=request.method,
+            path=request.url.path,
+            status=response.status_code,
+            duration_ms=round(duration * 1000),
+        )
+        return response
 
     @app.exception_handler(AppError)
     async def app_error_handler(request: Request, exc: AppError):

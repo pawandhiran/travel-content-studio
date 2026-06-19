@@ -1,13 +1,14 @@
 """Async Task Queue -- manages background jobs with progress tracking."""
 
 import asyncio
+import time
 from datetime import datetime, timezone
 from typing import Any, Callable, Coroutine
 
 from ulid import ULID
 
 from core.event_bus import event_bus
-from core.logging_config import get_logger
+from core.logging_config import get_job_logger, get_logger
 from models.db_models import JobStatus
 
 log = get_logger(__name__)
@@ -62,15 +63,20 @@ class TaskQueue:
             )
 
         async def _run():
+            job_log = get_job_logger(job_id)
+            t0 = time.monotonic()
+
             self._jobs[job_id]["status"] = JobStatus.running
             self._jobs[job_id]["started_at"] = datetime.now(timezone.utc).isoformat()
             await event_bus.broadcast(
                 "job.started", {"job_id": job_id, "job_type": job_type}
             )
             log.info("job_started", job_id=job_id, job_type=job_type)
+            job_log.info("Job started  type=%s  project=%s", job_type, project_id)
 
             try:
                 result = await coro_fn(job_id, _update_progress)
+                elapsed = round(time.monotonic() - t0, 2)
                 self._jobs[job_id]["status"] = JobStatus.completed
                 self._jobs[job_id]["progress"] = 100
                 self._jobs[job_id]["result"] = result
@@ -80,15 +86,19 @@ class TaskQueue:
                 await event_bus.broadcast(
                     "job.completed", {"job_id": job_id, "result": result}
                 )
-                log.info("job_completed", job_id=job_id)
+                log.info("job_completed", job_id=job_id, duration_s=elapsed)
+                job_log.info("Job completed  duration=%.2fs", elapsed)
             except asyncio.CancelledError:
+                elapsed = round(time.monotonic() - t0, 2)
                 self._jobs[job_id]["status"] = JobStatus.cancelled
                 self._jobs[job_id]["completed_at"] = datetime.now(
                     timezone.utc
                 ).isoformat()
                 await event_bus.broadcast("job.cancelled", {"job_id": job_id})
                 log.info("job_cancelled", job_id=job_id)
+                job_log.warning("Job cancelled  duration=%.2fs", elapsed)
             except Exception as exc:
+                elapsed = round(time.monotonic() - t0, 2)
                 self._jobs[job_id]["status"] = JobStatus.failed
                 self._jobs[job_id]["error"] = str(exc)
                 self._jobs[job_id]["completed_at"] = datetime.now(
@@ -98,6 +108,11 @@ class TaskQueue:
                     "job.failed", {"job_id": job_id, "error": str(exc)}
                 )
                 log.error("job_failed", job_id=job_id, error=str(exc))
+                job_log.error("Job failed  duration=%.2fs  error=%s", elapsed, exc, exc_info=True)
+            finally:
+                for h in job_log.handlers:
+                    h.close()
+                job_log.handlers.clear()
 
         task = asyncio.create_task(_run())
         self._tasks[job_id] = task

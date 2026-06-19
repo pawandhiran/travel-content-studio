@@ -16,7 +16,9 @@ from .transcription import router as transcription_router
 from .videos import router as videos_router
 from .voiceover import router as voiceover_router
 from .stock_photos import router as stock_photos_router
+from .chat import router as chat_router
 from .feedback import router as feedback_router
+from .logs import router as logs_router
 from .video_editing import router as video_editing_router
 from .youtube import router as youtube_router
 
@@ -42,5 +44,7 @@ def create_api_router() -> APIRouter:
     api.include_router(video_editing_router)
     api.include_router(stock_photos_router)
     api.include_router(feedback_router)
+    api.include_router(logs_router)
+    api.include_router(chat_router)
 
     return api
