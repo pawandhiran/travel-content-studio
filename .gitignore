@@ -1,0 +1,34 @@
+node_modules/
+out/
+release/
+dist/
+*.tsbuildinfo
+
+# Python backend
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.venv/
+backend/dist/
+backend/*.egg-info/
+*.pyc
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+
+# Data
+*.sqlite
+*.db
+
+# Logs
+*.log
+logs/

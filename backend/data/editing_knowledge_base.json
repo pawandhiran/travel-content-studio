@@ -1,0 +1,501 @@
+{
+  "version": "1.0",
+  "sources": [
+    "r/photography", "r/AskPhotography", "r/postprocessing",
+    "r/EditMyRaw", "r/Lightroom", "r/stockphotography"
+  ],
+  "techniques": {
+    "landscape": {
+      "exposure": {
+        "description": "Use graduated adjustments: darken sky 0.5-1.0 stops, lift shadows in foreground. Recover highlights first, then lift shadows. Never clip blacks.",
+        "brightness_adjust": 1.05,
+        "contrast_adjust": 1.1,
+        "shadow_lift": true,
+        "highlight_recovery": true
+      },
+      "color": {
+        "description": "Boost vibrance 10-20% (not saturation). Split tone: warm highlights (orange +5), cool shadows (blue +5). Green channel boost for foliage.",
+        "vibrance_boost": 1.12,
+        "saturation_adjust": 1.0,
+        "warmth_shift": 3
+      },
+      "sharpening": {
+        "description": "Apply to midtones only. Amount 40-60, radius 1.0. Avoid sharpening sky areas.",
+        "amount": 50,
+        "radius": 1.0,
+        "threshold": 2
+      },
+      "noise_reduction": {
+        "description": "Apply selectively to sky and shadow areas only. Preserve texture in foliage and rock detail.",
+        "strength": 6,
+        "selective": true
+      },
+      "common_mistakes": [
+        "Over-saturated skies turn neon blue -- Shutterstock rejects unnatural colors",
+        "Crushed blacks lose shadow detail needed for commercial use",
+        "HDR halo around horizon line is an instant rejection",
+        "Over-sharpened clouds create visible artifacts"
+      ]
+    },
+    "portrait": {
+      "exposure": {
+        "description": "Expose for skin tones. Lift shadows on face, darken busy backgrounds. Use radial mask around face to increase exposure +0.3 stops.",
+        "brightness_adjust": 1.03,
+        "contrast_adjust": 1.05,
+        "shadow_lift": true,
+        "highlight_recovery": false
+      },
+      "color": {
+        "description": "Warm skin tones slightly. Reduce orange saturation to avoid fake tan look. Keep white balance neutral-warm.",
+        "vibrance_boost": 1.05,
+        "saturation_adjust": 0.98,
+        "warmth_shift": 5
+      },
+      "sharpening": {
+        "description": "Sharpen eyes and hair only. Reduce clarity on skin for slight smoothing. Amount 30-40 max.",
+        "amount": 35,
+        "radius": 0.8,
+        "threshold": 3
+      },
+      "noise_reduction": {
+        "description": "Gentle NR on skin only. Over-NR creates plastic/waxy look that Shutterstock rejects. Keep pores and texture visible.",
+        "strength": 4,
+        "selective": true
+      },
+      "common_mistakes": [
+        "Plastic skin from over-smoothing -- stock reviewers inspect at 100%",
+        "Orange/magenta color cast from white balance errors",
+        "Sharpening halos around hair edges",
+        "Over-whitened teeth or eyes look unnatural"
+      ]
+    },
+    "food": {
+      "exposure": {
+        "description": "Bright and inviting. Lift overall exposure slightly. Brighten highlights on glossy surfaces. Darken background for mood.",
+        "brightness_adjust": 1.08,
+        "contrast_adjust": 1.12,
+        "shadow_lift": false,
+        "highlight_recovery": false
+      },
+      "color": {
+        "description": "Boost warm tones (orange, yellow, red) by 10-15%. Desaturate blues and greens slightly for appetizing look. Increase vibrance.",
+        "vibrance_boost": 1.15,
+        "saturation_adjust": 1.05,
+        "warmth_shift": 8
+      },
+      "sharpening": {
+        "description": "Moderate sharpening to bring out texture in food. Amount 50-60, radius 1.2. Show texture of bread crusts, cheese, herbs.",
+        "amount": 55,
+        "radius": 1.2,
+        "threshold": 1
+      },
+      "noise_reduction": {
+        "description": "Minimal NR. Food photos should retain natural texture. Only reduce noise if shot at high ISO.",
+        "strength": 3,
+        "selective": false
+      },
+      "common_mistakes": [
+        "Over-saturated reds make food look artificial",
+        "Blue/cool color cast makes food look unappetizing",
+        "Too much clarity on steam/smoke creates halos",
+        "Flat lighting with no contrast looks amateur"
+      ]
+    },
+    "architecture": {
+      "exposure": {
+        "description": "Balanced exposure showing interior and exterior detail. Recover highlights in windows. Lift shadows in structural details.",
+        "brightness_adjust": 1.02,
+        "contrast_adjust": 1.15,
+        "shadow_lift": true,
+        "highlight_recovery": true
+      },
+      "color": {
+        "description": "Neutral and accurate colors. Correct white balance for mixed lighting. Slight desaturation for clean modern look.",
+        "vibrance_boost": 1.05,
+        "saturation_adjust": 0.95,
+        "warmth_shift": 0
+      },
+      "sharpening": {
+        "description": "Strong sharpening on edges and lines. Amount 60-70, radius 1.0. Architectural detail should be crisp.",
+        "amount": 65,
+        "radius": 1.0,
+        "threshold": 1
+      },
+      "noise_reduction": {
+        "description": "Moderate NR especially on large flat surfaces (walls, sky). Preserve edge detail on building lines.",
+        "strength": 7,
+        "selective": true
+      },
+      "common_mistakes": [
+        "Converging verticals -- correct perspective distortion",
+        "Mixed white balance (daylight + tungsten) creates color zones",
+        "Over-sharpened brick/stone texture looks crunchy",
+        "Noise in large sky areas behind buildings"
+      ]
+    },
+    "street": {
+      "exposure": {
+        "description": "Slightly contrasty for mood. Darken shadows for depth, keep highlights alive. Embrace natural light.",
+        "brightness_adjust": 1.0,
+        "contrast_adjust": 1.18,
+        "shadow_lift": false,
+        "highlight_recovery": true
+      },
+      "color": {
+        "description": "Slight desaturation for documentary feel. Warm highlights, cool shadows split tone. Keep it natural.",
+        "vibrance_boost": 1.05,
+        "saturation_adjust": 0.92,
+        "warmth_shift": 2
+      },
+      "sharpening": {
+        "description": "Moderate sharpening. Amount 45-55. Street photos need detail but not over-processed look.",
+        "amount": 48,
+        "radius": 1.0,
+        "threshold": 2
+      },
+      "noise_reduction": {
+        "description": "Light NR only. Some grain adds character to street photography but Shutterstock prefers clean images.",
+        "strength": 5,
+        "selective": false
+      },
+      "common_mistakes": [
+        "Heavy vignette looks dated and amateur",
+        "Over-processed HDR ruins natural street atmosphere",
+        "Identifiable faces without model releases will be rejected",
+        "Tilted horizons are an instant reject for stock"
+      ]
+    },
+    "nature_wildlife": {
+      "exposure": {
+        "description": "Expose for the subject. Brighten animal/bird subject, darken distracting background. Recover detail in fur/feathers.",
+        "brightness_adjust": 1.05,
+        "contrast_adjust": 1.1,
+        "shadow_lift": true,
+        "highlight_recovery": true
+      },
+      "color": {
+        "description": "Boost vibrance for natural colors. Enhance greens for foliage. Keep animal colors accurate -- no oversaturation.",
+        "vibrance_boost": 1.15,
+        "saturation_adjust": 1.03,
+        "warmth_shift": 3
+      },
+      "sharpening": {
+        "description": "Careful sharpening on eyes and feathers/fur. Amount 50-60, radius 0.8. Eyes must be tack sharp for stock acceptance.",
+        "amount": 55,
+        "radius": 0.8,
+        "threshold": 2
+      },
+      "noise_reduction": {
+        "description": "High ISO common in wildlife. Apply moderate NR to out-of-focus areas, preserve detail on subject.",
+        "strength": 8,
+        "selective": true
+      },
+      "common_mistakes": [
+        "Soft eyes on the animal -- must be critically sharp",
+        "Noise in bokeh/background from high ISO",
+        "Over-saturated greens look fake",
+        "Cropping too tight loses commercial usability"
+      ]
+    },
+    "abstract_texture": {
+      "exposure": {
+        "description": "High contrast for maximum visual impact. Darken shadows aggressively, boost highlights. Create drama.",
+        "brightness_adjust": 1.0,
+        "contrast_adjust": 1.25,
+        "shadow_lift": false,
+        "highlight_recovery": false
+      },
+      "color": {
+        "description": "Bold, saturated colors work well. Boost vibrance 15-25%. Complementary color schemes (orange/blue, red/green).",
+        "vibrance_boost": 1.2,
+        "saturation_adjust": 1.1,
+        "warmth_shift": 0
+      },
+      "sharpening": {
+        "description": "Strong sharpening to bring out texture detail. Amount 60-80, radius 1.2. Texture is the whole point.",
+        "amount": 70,
+        "radius": 1.2,
+        "threshold": 0
+      },
+      "noise_reduction": {
+        "description": "Minimal NR. Texture patterns should remain sharp and detailed.",
+        "strength": 2,
+        "selective": false
+      },
+      "common_mistakes": [
+        "Not enough contrast -- abstracts need visual punch",
+        "Leaving dust spots that blend with the pattern",
+        "Uneven lighting creating hot spots",
+        "Image too busy with no clear focal point"
+      ]
+    },
+    "business_lifestyle": {
+      "exposure": {
+        "description": "Clean, bright, professional. Slight overexposure (+0.3) for airy commercial feel. Even lighting across frame.",
+        "brightness_adjust": 1.08,
+        "contrast_adjust": 1.05,
+        "shadow_lift": true,
+        "highlight_recovery": false
+      },
+      "color": {
+        "description": "Clean neutral colors. Slight warmth for approachable feel. White backgrounds should be pure white.",
+        "vibrance_boost": 1.05,
+        "saturation_adjust": 0.98,
+        "warmth_shift": 4
+      },
+      "sharpening": {
+        "description": "Moderate, clean sharpening. Amount 40-50, radius 1.0. Professional but not over-processed.",
+        "amount": 45,
+        "radius": 1.0,
+        "threshold": 2
+      },
+      "noise_reduction": {
+        "description": "Clean images expected. Apply NR to any noise present. Studio/office environments should be grain-free.",
+        "strength": 6,
+        "selective": false
+      },
+      "common_mistakes": [
+        "Visible logos or brand names will be rejected without property release",
+        "Uneven skin tones from mixed lighting",
+        "Cluttered background reduces commercial value",
+        "Not enough negative space for text placement"
+      ]
+    }
+  },
+  "universal_rules": {
+    "exposure": [
+      "Check histogram -- avoid clipping in highlights or shadows",
+      "Recover blown highlights before other adjustments",
+      "Lift shadows conservatively -- excessive shadow recovery adds noise"
+    ],
+    "sharpening": [
+      "Amount 30-50 max for stock photography",
+      "Radius 0.8-1.2 depending on subject detail",
+      "Never sharpen above amount 80 -- creates visible halos",
+      "Apply capture sharpening, not creative sharpening",
+      "Always check for halos at 100% zoom after sharpening"
+    ],
+    "noise_reduction": [
+      "Selective NR over global -- preserve texture where it matters",
+      "Keep texture in hair, fabric, stone, bark, feathers",
+      "Smooth sky, out-of-focus areas, and uniform surfaces",
+      "Over-NR creates plastic/waxy look -- Shutterstock rejects this",
+      "Check ISO in EXIF: < 400 rarely needs NR, 800-1600 moderate, > 3200 heavy"
+    ],
+    "color": [
+      "sRGB color profile mandatory for Shutterstock",
+      "White balance should be neutral for stock -- avoid extreme casts",
+      "Boost vibrance over saturation for natural look",
+      "Check skin tones look natural -- no orange or magenta casts"
+    ],
+    "composition": [
+      "Crop to standard ratios: 3:2, 4:3, 16:9, 1:1",
+      "Straighten horizon lines -- tilted horizons are rejected",
+      "Leave negative space for text placement (increases commercial value)",
+      "Remove distracting elements at edges of frame"
+    ],
+    "cleanup": [
+      "Remove all dust spots, sensor marks, lens flare",
+      "Fix chromatic aberration (purple/green fringing on high-contrast edges)",
+      "Remove any copyrighted logos, brand names, or identifiable text",
+      "Clean up distracting elements in background"
+    ],
+    "export": [
+      "JPEG quality 95-100 for Shutterstock submission",
+      "Embed sRGB ICC profile",
+      "Minimum 4 megapixels resolution",
+      "Maximum 50MB file size",
+      "No watermarks or text overlays"
+    ]
+  },
+  "shutterstock_rejection_triggers": [
+    {
+      "issue": "noise",
+      "description": "Visible noise/grain at 100% zoom, especially in shadows and sky gradients",
+      "severity": "high",
+      "detection": "Check patches from shadow areas and smooth gradients"
+    },
+    {
+      "issue": "sharpening_halos",
+      "description": "Light or dark halo along high-contrast edges from over-sharpening",
+      "severity": "high",
+      "detection": "Check edge contrast ratio at 100% zoom"
+    },
+    {
+      "issue": "over_nr",
+      "description": "Plastic/waxy appearance from excessive noise reduction, loss of fine detail",
+      "severity": "high",
+      "detection": "Check texture detail retention in detailed areas"
+    },
+    {
+      "issue": "banding",
+      "description": "Visible steps/bands in color gradients instead of smooth transitions",
+      "severity": "high",
+      "detection": "Check gradient areas for step artifacts"
+    },
+    {
+      "issue": "chromatic_aberration",
+      "description": "Purple or green fringing along high-contrast edges",
+      "severity": "medium",
+      "detection": "Check edges of dark objects against bright backgrounds"
+    },
+    {
+      "issue": "dust_spots",
+      "description": "Dark or light circular marks from sensor dust",
+      "severity": "medium",
+      "detection": "Check uniform areas like sky at 100% zoom"
+    },
+    {
+      "issue": "over_processed",
+      "description": "Over-saturated, over-contrasted HDR look that appears unnatural",
+      "severity": "high",
+      "detection": "Check overall saturation levels and local contrast"
+    },
+    {
+      "issue": "low_resolution",
+      "description": "Image below 4 megapixels or upscaled/interpolated",
+      "severity": "critical",
+      "detection": "Check pixel dimensions"
+    },
+    {
+      "issue": "compression_artifacts",
+      "description": "JPEG macroblocking visible in smooth areas",
+      "severity": "high",
+      "detection": "Check smooth gradient areas for blocky patterns"
+    },
+    {
+      "issue": "tilted_horizon",
+      "description": "Horizon line is not level",
+      "severity": "medium",
+      "detection": "Line detection on horizon"
+    }
+  ],
+  "shutterstock_categories": [
+    "Abstract", "Animals/Wildlife", "Arts", "Backgrounds/Textures",
+    "Beauty/Fashion", "Buildings/Landmarks", "Business/Finance",
+    "Education", "Food and Drink", "Healthcare/Medical", "Holidays",
+    "Industrial", "Interiors", "Miscellaneous", "Nature", "Objects",
+    "Parks/Outdoor", "People", "Religion", "Science", "Signs/Symbols",
+    "Sports/Recreation", "Technology", "Transportation", "Vintage"
+  ],
+  "scene_to_category_mapping": {
+    "landscape": ["Nature", "Parks/Outdoor"],
+    "portrait": ["People"],
+    "food": ["Food and Drink"],
+    "architecture": ["Buildings/Landmarks", "Interiors"],
+    "street": ["Transportation", "People"],
+    "nature_wildlife": ["Animals/Wildlife", "Nature"],
+    "abstract_texture": ["Abstract", "Backgrounds/Textures"],
+    "business_lifestyle": ["Business/Finance", "People"]
+  },
+  "stock_ready_mode": {
+    "description": "Minimal, authentic edits optimized for stock photography acceptance. Less is more -- buyers want natural-looking images, not over-processed ones.",
+    "philosophy": [
+      "Authenticity over perfection -- buyers reject overly polished/artificial images",
+      "Subtle corrections only -- fix technical issues, don't transform the mood",
+      "Preserve natural skin tones, lighting, and atmosphere",
+      "Clean but not sterile -- keep the human/organic feel",
+      "Ensure technical quality (sharp, well-exposed, low noise) without visible editing"
+    ],
+    "adjustments": {
+      "brightness_adjust": 1.02,
+      "contrast_adjust": 1.05,
+      "vibrance_boost": 1.05,
+      "saturation_adjust": 1.0,
+      "sharpening_amount": 30,
+      "sharpening_radius": 0.8,
+      "noise_reduction_strength": 3,
+      "warmth_shift": 0,
+      "vignette": 0,
+      "grain": 0
+    },
+    "rules": [
+      "NO heavy color grading -- keep colors natural",
+      "NO vignette -- stock reviewers flag it",
+      "NO film grain -- must be clean",
+      "NO heavy sharpening -- amount 30 max",
+      "NO extreme contrast -- keep shadows and highlights recoverable",
+      "MINIMAL noise reduction -- preserve texture at all costs",
+      "ALWAYS straighten horizon",
+      "ALWAYS remove dust spots and sensor marks",
+      "ALWAYS ensure sRGB profile",
+      "ALWAYS save at JPEG quality 95+"
+    ]
+  },
+  "shutterstock_demand_2026": {
+    "top_categories_by_sales": [
+      {
+        "category": "Business & Remote Work",
+        "demand": "highest",
+        "themes": ["people working on laptops", "team meetings", "modern offices", "co-working spaces", "hybrid work", "video calls"],
+        "tip": "Authentic over staged. Real-looking people in real settings outsell polished corporate stock."
+      },
+      {
+        "category": "Health & Wellness",
+        "demand": "very_high",
+        "themes": ["fitness", "mental health", "meditation", "yoga", "healthcare workers", "therapy sessions", "healthy food"],
+        "tip": "Wellness lifestyle shots with natural lighting. Diverse representation is key."
+      },
+      {
+        "category": "Technology & AI",
+        "demand": "very_high",
+        "themes": ["people using devices", "AI concepts", "smart home", "cybersecurity", "digital transformation", "automation"],
+        "tip": "Abstract tech concepts and real people interacting with technology both sell well."
+      },
+      {
+        "category": "Sustainable Living",
+        "demand": "high",
+        "themes": ["eco-friendly products", "solar panels", "electric vehicles", "recycling", "organic farming", "green buildings"],
+        "tip": "Corporate sustainability reporting drives massive demand. Think annual reports."
+      },
+      {
+        "category": "Diversity & Inclusion",
+        "demand": "high",
+        "themes": ["diverse teams", "multicultural families", "inclusive workplaces", "accessibility", "different body types"],
+        "tip": "Representation matters. Diverse images consistently outperform homogeneous ones."
+      },
+      {
+        "category": "Food & Drink",
+        "demand": "high",
+        "themes": ["prepared dishes", "ingredients", "cooking process", "restaurant scenes", "healthy eating", "food photography"],
+        "tip": "Overhead and 45-degree angles. Natural light. Style with minimal props."
+      },
+      {
+        "category": "Travel & Places",
+        "demand": "medium_high",
+        "themes": ["landmarks", "hotels", "transportation", "adventure", "cultural experiences", "local markets"],
+        "tip": "Generic sunsets are saturated. Stand out with unique angles, local culture, authentic travel moments."
+      },
+      {
+        "category": "Family & Lifestyle",
+        "demand": "medium_high",
+        "themes": ["parenting", "family activities", "home life", "couples", "celebrations", "morning routines"],
+        "tip": "Candid over posed. Real family moments in real homes."
+      },
+      {
+        "category": "Education",
+        "demand": "medium",
+        "themes": ["students", "classrooms", "online learning", "tutoring", "university life", "study groups"],
+        "tip": "E-learning and hybrid education imagery growing fast."
+      },
+      {
+        "category": "Seasonal & Holidays",
+        "demand": "seasonal_spikes",
+        "themes": ["Christmas", "Halloween", "summer", "back-to-school", "Valentine's Day", "New Year"],
+        "tip": "Upload 2-3 months before the holiday. Demand surges predictably."
+      }
+    ],
+    "keyword_strategy": {
+      "optimal_count": "25-40 keywords per image",
+      "first_7_most_important": true,
+      "layers": ["literal_subjects", "conceptual_themes", "emotional_tone", "stylistic_choices", "use_cases"],
+      "avoid": ["keyword stuffing", "irrelevant trending terms", "duplicate patterns across uploads"],
+      "framework": "Who + What + Where + When + Why"
+    },
+    "shot_list_keywords": {
+      "description": "Shutterstock publishes monthly Shot List keywords. Include these magic keywords to get surfaced to active buyers.",
+      "current_month_examples": ["SHOTLISTfreshstart", "SHOTLISTbanking"],
+      "note": "Check https://www.shutterstock.com/explore/the-shot-list monthly for updated keywords"
+    }
+  }
+}

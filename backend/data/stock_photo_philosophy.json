@@ -1,0 +1,362 @@
+{
+  "version": "1.0",
+  "title": "Stock Photography Editing Philosophy for Shutterstock",
+  "derived_from": [
+    "Shutterstock Content Quality Standards: Noise/Artifacts",
+    "Shutterstock Content Quality Standards: Composition",
+    "Shutterstock Content Quality Standards: Editing Techniques",
+    "Shutterstock Content Quality Standards: Post-production",
+    "Shutterstock Description and Keyword Best Practices",
+    "Shutterstock Creative Insights: Trending Keywords",
+    "Shutterstock The Shot List (monthly briefs)",
+    "r/photography, r/AskPhotography, r/postprocessing community wisdom",
+    "AutoKeyWorder 2026 stock market analysis",
+    "Shutterstock SEO Guide 2026"
+  ],
+
+  "core_principle": "The photo should look like it was taken perfectly in-camera by a skilled photographer -- not like it was rescued in post-production.",
+
+  "philosophy": {
+    "the_golden_rule": "If a viewer can tell the photo was edited, you've edited too much. Shutterstock reviewers inspect at 100% zoom. Every adjustment must be invisible at full resolution.",
+
+    "authenticity_over_perfection": {
+      "description": "The 2026 stock market has shifted decisively toward authentic imagery. Buyers across editorial, commercial, and brand campaigns are tired of the over-art-directed aesthetic. They want photos that look like they came from a real person's camera, not a studio.",
+      "principles": [
+        "Natural lighting wins over studio lighting for most categories",
+        "Real environments beat staged sets",
+        "Candid moments outsell posed shots",
+        "Imperfect-but-genuine beats polished-but-fake",
+        "The Instagram-feed aesthetic is now the target, not the magazine-cover aesthetic"
+      ]
+    },
+
+    "technical_excellence_is_non_negotiable": {
+      "description": "While the aesthetic has moved toward authentic/casual, technical quality standards remain extremely high. Shutterstock will reject technically flawed images regardless of how interesting the subject is.",
+      "requirements": [
+        "Sharp focus on the intended subject (eyes for portraits, horizon for landscapes)",
+        "Correct exposure -- no clipped highlights or crushed shadows",
+        "Clean noise profile -- invisible at 100% zoom",
+        "No compression artifacts, banding, or posterization",
+        "No dust spots, sensor marks, or lens flare (unless intentional and artistically justified)",
+        "Straight horizons (tilted = instant reject)",
+        "No visible editing artifacts (halos, clone-stamp patterns, color fringing)"
+      ]
+    },
+
+    "less_is_more": {
+      "description": "The most common rejection reason after technical issues is over-editing. Stock reviewers are trained to spot over-processed images.",
+      "avoid": [
+        "Over-sharpening -- creates halos and crispy texture. Max amount: 30-40 for stock.",
+        "Over-saturation -- neon blues, orange sunsets, electric greens are instant flags",
+        "Over-NR (noise reduction) -- plastic/waxy skin, lost texture detail",
+        "HDR look -- local contrast pushed too hard, unnatural halo between sky and ground",
+        "Heavy vignette -- dates the image and screams 'edited'",
+        "Film grain added in post -- Shutterstock wants clean images",
+        "Extreme color grading -- teal-and-orange, cross-processing, vintage filters",
+        "Upscaling/interpolation -- never upres an image"
+      ]
+    }
+  },
+
+  "stock_ready_editing_process": {
+    "description": "Step-by-step editing process for the Stock Ready mode. Each step should be invisible when viewed at 100%.",
+
+    "step_1_technical_fixes": {
+      "name": "Fix technical issues first",
+      "operations": [
+        {
+          "op": "straighten_horizon",
+          "description": "Auto-detect and correct tilted horizons. Even 0.5 degrees off is noticeable.",
+          "priority": "critical"
+        },
+        {
+          "op": "remove_dust_spots",
+          "description": "Scan for and remove sensor dust marks. Check sky areas and uniform surfaces at 100%.",
+          "priority": "critical"
+        },
+        {
+          "op": "fix_chromatic_aberration",
+          "description": "Remove purple/green fringing on high-contrast edges. Common on wide-angle lenses.",
+          "priority": "high"
+        },
+        {
+          "op": "correct_exposure",
+          "description": "Recover clipped highlights. Lift crushed shadows. Target: histogram fully within bounds with 2% headroom on each side.",
+          "priority": "high",
+          "limits": {
+            "brightness_adjust_max": 1.08,
+            "brightness_adjust_min": 0.92,
+            "never_clip": true
+          }
+        },
+        {
+          "op": "correct_white_balance",
+          "description": "Neutralize color casts. For stock, white balance should be accurate/neutral. Slight warmth (+3 shift) is acceptable for lifestyle/food.",
+          "priority": "high",
+          "limits": {
+            "max_warmth_shift": 5,
+            "max_cool_shift": -3
+          }
+        }
+      ]
+    },
+
+    "step_2_subtle_enhancement": {
+      "name": "Gentle enhancement -- invisible adjustments",
+      "operations": [
+        {
+          "op": "contrast",
+          "description": "Slight contrast boost for visual pop. Should not create crushed blacks or blown highlights.",
+          "limits": {
+            "contrast_adjust_max": 1.08,
+            "contrast_adjust_min": 0.95
+          }
+        },
+        {
+          "op": "vibrance",
+          "description": "Boost under-saturated colors. NEVER boost already-saturated colors. Vibrance, not saturation.",
+          "limits": {
+            "vibrance_boost_max": 1.10,
+            "vibrance_boost_min": 1.0
+          }
+        },
+        {
+          "op": "selective_noise_reduction",
+          "description": "Apply ONLY to smooth areas (sky, out-of-focus backgrounds). NEVER to textured areas (hair, fabric, stone, foliage).",
+          "limits": {
+            "strength_max": 5,
+            "selective": true,
+            "preserve_texture": true
+          }
+        },
+        {
+          "op": "gentle_sharpening",
+          "description": "Capture sharpening only. Applied at the very end. Must be invisible at 100% -- no halos, no crunchy edges.",
+          "limits": {
+            "amount_max": 30,
+            "radius_max": 0.8,
+            "threshold_min": 2
+          }
+        }
+      ]
+    },
+
+    "step_3_composition_check": {
+      "name": "Composition validation",
+      "operations": [
+        {
+          "op": "crop_to_standard_ratio",
+          "description": "Crop to nearest standard ratio if needed. Leave negative space for text placement (increases commercial value).",
+          "standard_ratios": ["3:2", "4:3", "16:9", "1:1", "4:5"]
+        },
+        {
+          "op": "check_distracting_elements",
+          "description": "Flag but don't auto-remove. Distracting elements at frame edges should be cropped out. Major distractions should be flagged for manual review.",
+          "auto_crop_edge_distractions": true,
+          "flag_for_manual_review": true
+        }
+      ]
+    },
+
+    "step_4_export": {
+      "name": "Stock-ready export",
+      "operations": [
+        {
+          "op": "embed_srgb_profile",
+          "description": "Mandatory. Shutterstock requires sRGB.",
+          "priority": "critical"
+        },
+        {
+          "op": "jpeg_quality",
+          "description": "Save at quality 95. No lower -- compression artifacts will be visible.",
+          "quality": 95,
+          "priority": "critical"
+        },
+        {
+          "op": "verify_resolution",
+          "description": "Must be >= 4 megapixels. Never upscale.",
+          "min_megapixels": 4,
+          "never_upscale": true
+        }
+      ]
+    }
+  },
+
+  "what_shutterstock_reviewers_check": {
+    "technical_execution": [
+      "Focus: Is the subject sharp? Are the eyes in focus for portraits?",
+      "Exposure: Is the histogram well-distributed? Any clipping?",
+      "Noise: Visible at 100%? Especially in shadows and sky gradients?",
+      "Artifacts: Compression blocking? Banding in gradients?",
+      "Sharpening: Halos around edges? Over-processed crispy look?",
+      "NR artifacts: Plastic/waxy skin? Lost fine detail?"
+    ],
+    "composition": [
+      "Is the framing intentional? Does it complement the subject?",
+      "Are there distracting elements entering the frame?",
+      "Does the image have commercial value? (negative space for text?)",
+      "Is the horizon straight?"
+    ],
+    "metadata": [
+      "Does the title describe what's in the image? (sentence, not keywords)",
+      "Are keywords relevant and precise? (7-50, no stuffing)",
+      "Are 1-2 categories selected from the approved list?",
+      "Are there identifiable people without model releases?",
+      "Are there visible trademarks or brand logos?"
+    ],
+    "post_production": [
+      "Are edits invisible at 100% zoom?",
+      "Is clone-stamp/healing work clean? (no repeating patterns, edge artifacts)",
+      "Is color grading natural? (no extreme casts or over-saturation)",
+      "Was the image upscaled? (never acceptable)"
+    ]
+  },
+
+  "demand_intelligence_2026": {
+    "biggest_opportunity": "Content that breaks the polished stock photo look. Natural lighting, imperfect compositions, real textures. Buyers want imagery that could plausibly come from a real person's camera rather than a commissioned studio shoot.",
+
+    "niche_strategy": {
+      "principle": "Don't chase the biggest categories. Find under-served sub-niches within popular categories.",
+      "method": "The 20-60-20 rule: 20% of your portfolio drives 80% of earnings. That 20% almost always comes from landing in a sub-niche with high demand and low supply, not from competing in saturated broad categories."
+    },
+
+    "content_brief_keywords": {
+      "description": "Shutterstock publishes magic keywords monthly. Including these in your metadata gets your images surfaced to active buyers.",
+      "current_keywords": [
+        "SHOTLISTfreshstart",
+        "SHOTLISTbanking",
+        "KnowledgeForAll",
+        "sstkDiverseBeauty",
+        "sstkTechnology"
+      ],
+      "update_frequency": "monthly",
+      "source": "https://www.shutterstock.com/explore/the-shot-list"
+    },
+
+    "metadata_optimization": {
+      "title_format": "Natural sentence answering Who + What + Where. Example: 'Young woman working on laptop in cozy home office with morning sunlight'",
+      "keyword_layers": {
+        "layer_1_literal": "First 7-10 keywords. Physical subjects: woman, laptop, home office, desk, coffee, morning",
+        "layer_2_conceptual": "Next 10-15. Themes: remote work, productivity, work-life balance, freelance, independence",
+        "layer_3_stylistic": "Last 5-10. Visual: natural light, warm tones, shallow depth of field, lifestyle, candid",
+        "layer_4_use_cases": "Optional. How buyers use it: blog header, social media, website banner, presentation"
+      },
+      "optimal_count": "25-40 keywords",
+      "critical_rule": "First 7-10 keywords carry the most ranking weight in Shutterstock's AI search"
+    },
+
+    "shot_list_july_2026": {
+      "theme": "Life and finances",
+      "briefs": [
+        {
+          "name": "On The Move",
+          "description": "People buying homes, renting, unpacking boxes worldwide",
+          "examples": ["real estate agent meetings", "couples building DIY furniture", "families packing/unpacking", "students moving into apartments"],
+          "keyword": "SHOTLISTfreshstart",
+          "diversity_note": "Feature diverse ethnicities, ages, abilities, LGBTQ+ individuals"
+        },
+        {
+          "name": "Starting a Business",
+          "description": "Entrepreneurs in early stages of starting brands and businesses",
+          "examples": ["meeting with architects in empty office space", "small business owners decorating stores", "professionals meeting investors"],
+          "keyword": "SHOTLISTfreshstart"
+        },
+        {
+          "name": "Financial Planning",
+          "description": "Everyday people meeting financial advisors",
+          "examples": ["couple meeting bank advisor", "person reviewing investment portfolio", "family budgeting at kitchen table"],
+          "keyword": "SHOTLISTbanking"
+        },
+        {
+          "name": "Indulge",
+          "description": "People enjoying special experiences -- work-life balance",
+          "examples": ["couple at expensive restaurant", "family vacation exploring forests", "large purchases like new cars"],
+          "keyword": "SHOTLISTbanking"
+        }
+      ],
+      "compliance_rules": [
+        "Content with recognizable faces MUST include model releases",
+        "No logos should be visible",
+        "For recognizable interiors of private properties, include property release",
+        "No recognizable software on screens"
+      ]
+    },
+
+    "trending_keyword_tags_2025_2026": {
+      "education": {
+        "tag": "KnowledgeForAll",
+        "themes": ["diverse learning environments", "online education", "tutoring", "study groups"]
+      },
+      "beauty_skincare": {
+        "tag": "sstkDiverseBeauty",
+        "themes": ["beauty salon", "skincare", "self care", "cosmetics", "dermatology", "hair salon"]
+      },
+      "technology_ai": {
+        "tag": "sstkTechnology",
+        "themes": ["AI with people", "digital transformation", "virtual reality", "automation", "cloud computing", "hologram"]
+      }
+    },
+
+    "top_selling_sub_niches_2026": {
+      "description": "Don't chase broad categories -- find under-served sub-niches. These are specific angles within popular categories that have high demand but low supply.",
+      "examples": [
+        "Remote work from unusual locations (not just home offices)",
+        "Authentic multigenerational family meals",
+        "Sustainable fashion in everyday settings",
+        "Mental health concepts beyond meditation (therapy, support groups, journaling)",
+        "Food prep in home kitchens (not studio setups)",
+        "Electric vehicle charging in real parking lots",
+        "Coworking spaces with diverse occupants",
+        "Solo female travelers in non-tourist settings",
+        "Elderly people using technology naturally",
+        "Casual business meetings in coffee shops"
+      ],
+      "avoid_oversaturated": [
+        "Generic sunsets and beaches",
+        "Standard office meeting rooms with whiteboards",
+        "Isolated green leaves for sustainability",
+        "Typical handshake photos",
+        "Plain white background product shots (saturated)"
+      ]
+    },
+
+    "photography_rules_for_stock": {
+      "shooting": [
+        "Shoot in RAW -- gives maximum editing latitude without quality loss",
+        "Keep ISO as low as possible -- high ISO noise is the #1 technical rejection reason",
+        "Use natural light when possible -- buyers prefer it over studio lighting in 2026",
+        "Shoot both horizontal AND vertical of the same scene -- doubles your catalog value",
+        "Leave negative space for text/copy placement -- increases commercial value significantly",
+        "Include diverse representation -- diverse images consistently outperform homogeneous ones",
+        "Remove brands/logos from scene BEFORE shooting -- easier than cloning in post"
+      ],
+      "post_production": [
+        "Edits must be INVISIBLE at 100% zoom -- this is the single most important rule",
+        "Fix technical issues (dust, horizon, CA) -- these are mandatory",
+        "Gentle exposure/contrast adjustments -- stay within ±8% of original",
+        "Selective noise reduction only -- never global, never heavy",
+        "Sharpening amount 30 max for stock -- anything higher creates visible halos",
+        "Never upscale images -- instant rejection",
+        "Never add vignette, grain, or heavy color grading -- signals over-editing",
+        "Always embed sRGB ICC profile",
+        "Export JPEG at quality 95+",
+        "Clone/heal cleanup must be undetectable -- no repeating patterns"
+      ],
+      "what_gets_rejected": [
+        "Noise/grain visible at 100% (especially shadows and gradients)",
+        "Sharpening halos around edges",
+        "Plastic/waxy skin from over-NR",
+        "Banding/posterization in smooth gradients",
+        "Chromatic aberration (purple/green fringing)",
+        "Visible dust spots or sensor marks",
+        "Over-processed HDR look",
+        "Upscaled/interpolated resolution",
+        "Tilted horizon (even 0.5 degrees)",
+        "Visible brand logos or trademarks",
+        "Poor composition (odd cropping, distracting elements)",
+        "Out of focus subject",
+        "Incorrect white balance"
+      ]
+    }
+  }
+}

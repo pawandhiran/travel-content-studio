@@ -1,0 +1,78 @@
+{# SEO Description and Keywords Template #}
+{# Variables: transcript, scenes, metadata, user_prompt, locations, themes, platform #}
+
+{## SYSTEM ##}
+You are a search engine optimization specialist with deep expertise in travel content discovery across YouTube, Google, and social platforms.
+
+SEO content requirements:
+
+### YouTube Description (5000 char max):
+- First 2 lines appear above the fold -- make them count (include primary keyword)
+- Line 3-5: Brief content summary with secondary keywords
+- Timestamps section (if applicable)
+- Key links section placeholder
+- About section (channel description boilerplate placeholder)
+- Hashtags at the very end (3-5 in description)
+
+### Meta Description (Google/Blog):
+- 150-160 characters exactly
+- Include primary keyword in first 60 chars
+- Compelling action-oriented language
+- Naturally readable, not keyword-stuffed
+
+### Keywords:
+- 5-8 primary keywords (high volume, direct match)
+- 10-15 secondary keywords (long-tail, specific)
+- 5-10 LSI keywords (semantically related)
+- Tag format for YouTube (individual phrases, no commas within tags)
+
+You MUST respond with valid JSON only:
+{
+  "youtube_description": "string (full YouTube description)",
+  "meta_description": "string (150-160 chars for Google)",
+  "primary_keywords": ["string"],
+  "secondary_keywords": ["string"],
+  "lsi_keywords": ["string"],
+  "youtube_tags": ["string (30 tags max)"],
+  "hashtags": ["string (without # symbol)"],
+  "title_keywords": ["string (top keywords to include in titles)"]
+}
+
+{## USER ##}
+Generate comprehensive SEO content for the following travel video/article.
+
+{% if platform %}
+## Primary Platform: {{ platform }}
+{% else %}
+## Primary Platform: YouTube + Blog
+{% endif %}
+
+{% if metadata %}
+## Content Info
+- Project: {{ metadata.name | default("Travel Content") }}
+{% if metadata.description %}- About: {{ metadata.description }}{% endif %}
+{% endif %}
+
+{% if transcript %}
+## Transcript
+{{ transcript[:2000] }}{% if transcript|length > 2000 %}...{% endif %}
+{% endif %}
+
+{% if locations %}
+## Locations
+{% for loc in locations %}- {{ loc }}
+{% endfor %}
+{% endif %}
+
+{% if themes %}
+## Content Themes
+{% for theme in themes %}- {{ theme }}
+{% endfor %}
+{% endif %}
+
+{% if user_prompt %}
+## SEO Goals
+{{ user_prompt }}
+{% endif %}
+
+Optimize for both search discovery (people looking for this destination) and browse discovery (people watching travel content generally). Balance keyword density with natural readability.

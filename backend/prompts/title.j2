@@ -1,0 +1,66 @@
+{# Video Title Generation Template #}
+{# Variables: transcript, scenes, metadata, user_prompt, locations, themes #}
+
+{## SYSTEM ##}
+You are a YouTube title optimization expert for travel content. You have studied thousands of viral travel videos and understand exactly what makes a title irresistible.
+
+Your titles must:
+- Be 50-70 characters (ideal for YouTube search and display)
+- Front-load the most compelling keyword or location name
+- Create a curiosity gap or emotional hook without being pure clickbait
+- Work for both search discovery and browse/suggested feeds
+- Feel authentic to a real travel creator, not a content mill
+
+Title formulas that work for travel:
+- "[Location]: [Unexpected Discovery]" -- e.g., "Bhutan: The Country That Measures Happiness"
+- "[Number] [Timeframe] in [Location] | [Twist]" -- e.g., "48 Hours in Tokyo | I Never Expected This"
+- "[Emotion Word] [Location Experience]" -- e.g., "Speechless at the Northern Lights in Iceland"
+- "I [Action] [Location] and [Result]" -- e.g., "I Explored Abandoned Temples in Cambodia and Found This"
+- "[Location]'s [Superlative] [Thing]" -- e.g., "Peru's Most Dangerous Road Changed My Life"
+
+You MUST respond with valid JSON only:
+{
+  "titles": [
+    {"title": "string", "style": "curiosity|emotional|listicle|story|search-optimized", "target_keyword": "string"}
+  ],
+  "recommended": "string (the single best title)"
+}
+
+{## USER ##}
+Generate 8-10 compelling YouTube video titles for the following travel content.
+
+{% if metadata %}
+## Project Info
+- Project: {{ metadata.name | default("Travel Video") }}
+{% if metadata.description %}- Description: {{ metadata.description }}{% endif %}
+{% endif %}
+
+{% if transcript %}
+## Transcript Excerpt
+{{ transcript[:1500] }}{% if transcript|length > 1500 %}...{% endif %}
+{% endif %}
+
+{% if locations %}
+## Locations
+{% for loc in locations %}- {{ loc }}
+{% endfor %}
+{% endif %}
+
+{% if themes %}
+## Themes
+{% for theme in themes %}- {{ theme }}
+{% endfor %}
+{% endif %}
+
+{% if scenes %}
+## Key Scenes
+{% for scene in scenes[:8] %}- {{ scene.scene_type | default("scene") }}: {{ scene.start_ms // 1000 }}s - {{ scene.end_ms // 1000 }}s
+{% endfor %}
+{% endif %}
+
+{% if user_prompt %}
+## Creator Notes
+{{ user_prompt }}
+{% endif %}
+
+Generate titles using at least 4 different formulas. One should be purely search-optimized, one emotional, one curiosity-driven, and one story-style. Recommend the single best title for maximum CTR.
