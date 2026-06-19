@@ -19,6 +19,7 @@ dependencies = [
     "websockets>=14.1",
     "aiofiles>=24.1.0",
     "psutil>=6.0.0",
+    "greenlet>=3.0.0",
 ]
 
 [project.optional-dependencies]
