@@ -1,9 +1,29 @@
-import { useEffect } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useProjectStore } from '../stores/projectStore'
 import { useSystemStore } from '../stores/systemStore'
 import { useJobStore } from '../stores/jobStore'
-import { FolderOpen, Plus, Cpu, HardDrive, MonitorPlay, Activity } from 'lucide-react'
+import { apiClient } from '../services/apiClient'
+import {
+  FolderOpen,
+  Plus,
+  Cpu,
+  HardDrive,
+  MonitorPlay,
+  Activity,
+  RefreshCw,
+  Download,
+  Loader2
+} from 'lucide-react'
+
+interface UpdateInfo {
+  current_version: string
+  current_sha: string | null
+  latest_sha: string | null
+  update_available: boolean
+  latest_commit_message: string | null
+  latest_commit_date: string | null
+}
 
 export function Dashboard() {
   const navigate = useNavigate()
@@ -11,11 +31,43 @@ export function Dashboard() {
   const { hardware, fetchHardware, activeModel, fetchModels } = useSystemStore()
   const { jobs, fetchJobs } = useJobStore()
 
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
+  const [updating, setUpdating] = useState(false)
+  const [updateMessage, setUpdateMessage] = useState<string | null>(null)
+
+  const checkForUpdates = useCallback(async () => {
+    try {
+      const data = await apiClient.get<UpdateInfo>('/system/check-update')
+      setUpdateInfo(data)
+    } catch {
+      // Offline or API unreachable -- silently ignore
+    }
+  }, [])
+
+  const handleUpdate = useCallback(async () => {
+    setUpdating(true)
+    setUpdateMessage(null)
+    try {
+      const result = await window.api.pullUpdates()
+      if (result.success) {
+        setUpdateMessage(result.message)
+        setTimeout(() => window.api.reloadApp(), 1500)
+      } else {
+        setUpdateMessage(`Update failed: ${result.message}`)
+      }
+    } catch {
+      setUpdateMessage('Update failed: could not reach Electron IPC')
+    } finally {
+      setUpdating(false)
+    }
+  }, [])
+
   useEffect(() => {
     fetchProjects()
     fetchHardware()
     fetchModels()
     fetchJobs()
+    checkForUpdates()
   }, [])
 
   const recentProjects = projects.slice(0, 5)
@@ -23,6 +75,38 @@ export function Dashboard() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
+      {/* Update banner */}
+      {updateInfo?.update_available && (
+        <div className="flex items-center justify-between rounded-xl border border-brand-600/50 bg-brand-600/10 px-5 py-3">
+          <div className="flex items-center gap-3">
+            <RefreshCw className="h-5 w-5 text-brand-400" />
+            <div>
+              <p className="text-sm font-medium text-white">Update Available</p>
+              <p className="text-xs text-gray-400">
+                {updateInfo.latest_commit_message || 'A new version is available'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {updateMessage && (
+              <p className="text-xs text-gray-400">{updateMessage}</p>
+            )}
+            <button
+              onClick={handleUpdate}
+              disabled={updating}
+              className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+            >
+              {updating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              {updating ? 'Updating...' : 'Update & Reload'}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-white">Welcome to Travel Content Studio</h2>

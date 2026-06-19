@@ -7,6 +7,7 @@ import { OllamaManager } from './ollama-manager'
 import { isFirstLaunch } from './first-launch'
 
 let mainWindow: BrowserWindow | null = null
+let isQuitting = false
 const backendManager = new BackendManager()
 const ollamaManager = new OllamaManager()
 
@@ -28,6 +29,13 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show()
+  })
+
+  mainWindow.on('close', (e) => {
+    if (!isQuitting) {
+      e.preventDefault()
+      mainWindow?.webContents.send('app-closing')
+    }
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -65,9 +73,23 @@ app.whenReady().then(async () => {
   })
 })
 
-app.on('before-quit', async () => {
-  await backendManager.stop()
-  await ollamaManager.stop()
+app.on('before-quit', async (e) => {
+  if (!isQuitting) {
+    isQuitting = true
+    e.preventDefault()
+
+    try {
+      const port = backendManager.getPort()
+      await fetch(`http://127.0.0.1:${port}/api/v1/system/shutdown`, { method: 'POST' }).catch(() => {})
+      await new Promise((r) => setTimeout(r, 2000))
+    } catch {
+      // Backend may already be down
+    }
+
+    await ollamaManager.stop()
+    await backendManager.stop()
+    app.quit()
+  }
 })
 
 app.on('window-all-closed', () => {

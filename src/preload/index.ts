@@ -22,6 +22,11 @@ const api = {
   downloadModel: (model: string): Promise<{ success: boolean; message: string }> =>
     ipcRenderer.invoke('download-model', model),
   markSetupComplete: (): Promise<void> => ipcRenderer.invoke('mark-setup-complete'),
+  pullUpdates: (): Promise<{ success: boolean; message: string; changes: string }> =>
+    ipcRenderer.invoke('pull-updates'),
+  reloadApp: (): Promise<{ success: boolean }> => ipcRenderer.invoke('reload-app'),
+  stopApp: (): Promise<{ success: boolean; steps: { step: string; status: string; detail?: string }[] }> =>
+    ipcRenderer.invoke('stop-app'),
   onInstallProgress: (callback: (data: { component: string; percent: number; model?: string }) => void) => {
     ipcRenderer.on('install-progress', (_, data) => callback(data))
   },
@@ -30,6 +35,9 @@ const api = {
   },
   onUpdateDownloaded: (callback: () => void) => {
     ipcRenderer.on('update-downloaded', () => callback())
+  },
+  onAppClosing: (callback: () => void) => {
+    ipcRenderer.on('app-closing', () => callback())
   }
 }
 

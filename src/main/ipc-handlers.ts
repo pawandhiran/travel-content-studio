@@ -1,4 +1,4 @@
-import { ipcMain, dialog, shell, app } from 'electron'
+import { ipcMain, dialog, shell, app, BrowserWindow } from 'electron'
 import { execSync, spawn, ChildProcess } from 'child_process'
 import { createWriteStream, existsSync, mkdirSync, unlinkSync } from 'fs'
 import { join } from 'path'
@@ -223,5 +223,69 @@ export function setupIpcHandlers(
 
   ipcMain.handle('mark-setup-complete', () => {
     markSetupComplete()
+  })
+
+  // --- App Update (dev/source installs: git pull + reload) ---
+  // Production builds use electron-updater via src/main/updater.ts instead.
+
+  ipcMain.handle('pull-updates', async () => {
+    try {
+      const appPath = app.isPackaged
+        ? app.getAppPath()
+        : join(__dirname, '..', '..')
+
+      const output = execSync('git pull origin main', {
+        cwd: appPath,
+        encoding: 'utf-8',
+        timeout: 30_000,
+        stdio: ['pipe', 'pipe', 'pipe']
+      })
+
+      const alreadyUpToDate = output.includes('Already up to date')
+      return {
+        success: true,
+        message: alreadyUpToDate ? 'Already up to date' : 'Updates pulled successfully',
+        changes: output.trim()
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err)
+      return { success: false, message, changes: '' }
+    }
+  })
+
+  ipcMain.handle('reload-app', () => {
+    BrowserWindow.getAllWindows().forEach((w) => w.reload())
+    return { success: true }
+  })
+
+  ipcMain.handle('stop-app', async () => {
+    const steps: { step: string; status: 'ok' | 'skipped' | 'error'; detail?: string }[] = []
+
+    try {
+      const port = backendManager.getPort()
+      const res = await fetch(`http://127.0.0.1:${port}/api/v1/system/shutdown`, { method: 'POST' })
+      steps.push({ step: 'backend', status: res.ok ? 'ok' : 'error', detail: `HTTP ${res.status}` })
+    } catch (err: unknown) {
+      steps.push({ step: 'backend', status: 'error', detail: err instanceof Error ? err.message : String(err) })
+    }
+
+    await new Promise((r) => setTimeout(r, 2000))
+
+    if (ollamaManager.isRunning()) {
+      try {
+        await ollamaManager.stop()
+        steps.push({ step: 'ollama', status: 'ok' })
+      } catch (err: unknown) {
+        steps.push({ step: 'ollama', status: 'error', detail: err instanceof Error ? err.message : String(err) })
+      }
+    } else {
+      steps.push({ step: 'ollama', status: 'skipped', detail: 'not running' })
+    }
+
+    await backendManager.stop()
+    steps.push({ step: 'processes_cleaned', status: 'ok' })
+
+    setTimeout(() => app.quit(), 300)
+    return { success: true, steps }
   })
 }

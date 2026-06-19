@@ -1,13 +1,42 @@
-import { useEffect } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useSystemStore } from '../stores/systemStore'
+import { apiClient } from '../services/apiClient'
+import { RefreshCw, Loader2, CheckCircle2 } from 'lucide-react'
+
+interface UpdateInfo {
+  current_version: string
+  current_sha: string | null
+  latest_sha: string | null
+  update_available: boolean
+  latest_commit_message: string | null
+  latest_commit_date: string | null
+}
 
 export function Settings() {
   const { hardware, activeModel, availableModels, fetchHardware, fetchModels, switchModel } =
     useSystemStore()
 
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
+  const [checking, setChecking] = useState(false)
+  const [lastChecked, setLastChecked] = useState<Date | null>(null)
+
+  const checkForUpdates = useCallback(async () => {
+    setChecking(true)
+    try {
+      const data = await apiClient.get<UpdateInfo>('/system/check-update')
+      setUpdateInfo(data)
+      setLastChecked(new Date())
+    } catch {
+      // Offline or API unreachable
+    } finally {
+      setChecking(false)
+    }
+  }, [])
+
   useEffect(() => {
     fetchHardware()
     fetchModels()
+    checkForUpdates()
   }, [])
 
   return (
@@ -80,10 +109,50 @@ export function Settings() {
       {/* About */}
       <section className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
         <h3 className="mb-4 text-lg font-semibold text-white">About</h3>
-        <div className="space-y-2">
-          <InfoRow label="Version" value="0.1.0" />
+        <div className="grid grid-cols-2 gap-4">
+          <InfoRow
+            label="Version"
+            value={updateInfo?.current_version || '0.1.0'}
+          />
+          <InfoRow
+            label="Git SHA"
+            value={updateInfo?.current_sha?.slice(0, 7) || 'unknown'}
+          />
           <InfoRow label="License" value="MIT" />
+          <InfoRow
+            label="Last Checked"
+            value={lastChecked ? lastChecked.toLocaleTimeString() : 'Never'}
+          />
         </div>
+
+        {updateInfo?.update_available && (
+          <div className="mt-4 flex items-center gap-2 rounded-lg border border-brand-600/50 bg-brand-600/10 px-4 py-2">
+            <RefreshCw className="h-4 w-4 text-brand-400" />
+            <p className="text-sm text-brand-400">
+              Update available — {updateInfo.latest_commit_message || 'new commits on main'}
+            </p>
+          </div>
+        )}
+
+        {updateInfo && !updateInfo.update_available && (
+          <div className="mt-4 flex items-center gap-2 rounded-lg border border-green-600/30 bg-green-600/10 px-4 py-2">
+            <CheckCircle2 className="h-4 w-4 text-green-400" />
+            <p className="text-sm text-green-400">You are on the latest version</p>
+          </div>
+        )}
+
+        <button
+          onClick={checkForUpdates}
+          disabled={checking}
+          className="mt-4 flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-800 px-4 py-2 text-sm text-gray-300 transition-colors hover:border-gray-600 hover:bg-gray-700 disabled:opacity-50"
+        >
+          {checking ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
+          {checking ? 'Checking...' : 'Check for Updates'}
+        </button>
       </section>
     </div>
   )
