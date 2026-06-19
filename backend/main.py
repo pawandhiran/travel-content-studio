@@ -62,13 +62,15 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
-        allow_credentials=True,
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
     @app.middleware("http")
     async def log_requests(request: Request, call_next):
+        if request.url.path.startswith("/ws"):
+            return await call_next(request)
         start = time.time()
         response = await call_next(request)
         duration = time.time() - start
