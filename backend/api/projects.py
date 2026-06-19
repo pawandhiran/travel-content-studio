@@ -27,13 +27,8 @@ from models.schemas import (
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
-def _project_to_response(project: Project, include_tags: bool = False) -> ProjectResponse:
-    tags = []
-    if include_tags:
-        try:
-            tags = [pt.tag.name for pt in project.project_tags] if project.project_tags else []
-        except Exception:
-            tags = []
+def _project_to_response(project: Project) -> ProjectResponse:
+    tags = [pt.tag.name for pt in project.project_tags] if project.project_tags else []
     return ProjectResponse(
         id=project.id,
         name=project.name,
@@ -112,7 +107,12 @@ async def create_project(
         db.add(ProjectTag(project_id=project_id, tag_id=tag_row.id))
 
     await db.flush()
-    await db.refresh(project, ["project_tags"])
+    result = await db.execute(
+        select(Project)
+        .where(Project.id == project_id)
+        .options(selectinload(Project.project_tags).selectinload(ProjectTag.tag))
+    )
+    project = result.scalar_one()
     return _project_to_response(project)
 
 
@@ -151,7 +151,12 @@ async def update_project(
         project.status = ProjectStatus(body.status)
 
     await db.flush()
-    await db.refresh(project, ["project_tags"])
+    result = await db.execute(
+        select(Project)
+        .where(Project.id == project_id)
+        .options(selectinload(Project.project_tags).selectinload(ProjectTag.tag))
+    )
+    project = result.scalar_one()
     return _project_to_response(project)
 
 
@@ -216,5 +221,10 @@ async def import_project(
     )
     db.add(project)
     await db.flush()
-    await db.refresh(project, ["project_tags"])
+    result = await db.execute(
+        select(Project)
+        .where(Project.id == project_id)
+        .options(selectinload(Project.project_tags).selectinload(ProjectTag.tag))
+    )
+    project = result.scalar_one()
     return _project_to_response(project)

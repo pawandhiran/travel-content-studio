@@ -37,6 +37,7 @@ export default function App() {
     <AppShell>
       <Routes>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/chat" element={<Chat />} />
         <Route path="/projects" element={<ProjectList />} />
         <Route path="/projects/:id/*" element={<ProjectWorkspace />} />
         <Route path="/logs" element={<Logs />} />

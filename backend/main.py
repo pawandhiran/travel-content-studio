@@ -40,6 +40,10 @@ async def lifespan(app: FastAPI):
     feedback_engine.initialize(settings.data_dir)
     logger.info("feedback_engine_initialized")
 
+    from modules.chat_agent import chat_agent
+    chat_agent.initialize(settings.data_dir)
+    logger.info("chat_agent_initialized")
+
     yield
 
     logger.info("shutting_down_backend")

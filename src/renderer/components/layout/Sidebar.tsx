@@ -2,6 +2,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
   FolderOpen,
+  MessageSquare,
   Settings,
   Video,
   FileText,
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react'
 
 const navItems = [
+  { icon: MessageSquare, label: 'AI Assistant', path: '/chat' },
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
   { icon: FolderOpen, label: 'Projects', path: '/projects' }
 ]
