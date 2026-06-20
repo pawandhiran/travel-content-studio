@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -148,13 +148,20 @@ async def _process_single(
         except ProcessingError as exc:
             log.warning("metadata_generation_skipped", image=str(image_path), error=str(exc))
 
+    serializable_issues = []
+    for issue in issues + qc_issues:
+        if hasattr(issue, '__dataclass_fields__'):
+            serializable_issues.append(asdict(issue))
+        else:
+            serializable_issues.append(issue)
+
     return PhotoResult(
         original_path=image_path,
         enhanced_path=enhanced_path,
         scene_type=scene_type,
         quality_score=quality_score,
         passed_qc=passed_qc,
-        issues=issues + qc_issues,
+        issues=serializable_issues,
         metadata=metadata,
     )
 

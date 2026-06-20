@@ -14,7 +14,6 @@ declare global {
   interface Window {
     api: {
       checkDependencies: () => Promise<DependencyStatus>
-      runSetupScript: (script: string) => Promise<{ success: boolean; output: string }>
       installOllama: () => Promise<{ success: boolean; message: string }>
       installFfmpeg: () => Promise<{ success: boolean; message: string }>
       downloadModel: (model: string) => Promise<{ success: boolean; message: string }>

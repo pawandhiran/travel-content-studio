@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { apiClient } from '../../services/apiClient'
-import { Bot, Play, CheckCircle, XCircle, Clock, Loader, AlertCircle } from 'lucide-react'
+import { Bot, Play, CheckCircle, XCircle, Clock, Loader, AlertCircle, MinusCircle } from 'lucide-react'
 
 const agents = [
   { id: 'trip_analyzer', name: 'Trip Analyzer', desc: 'Parse itinerary, extract locations and timeline' },
@@ -13,7 +13,7 @@ const agents = [
   { id: 'publishing_assistant', name: 'Publishing Assistant', desc: 'Format and package for each platform' }
 ]
 
-type AgentStatus = 'idle' | 'running' | 'completed' | 'failed'
+type AgentStatus = 'idle' | 'running' | 'completed' | 'failed' | 'skipped'
 
 export function AgentPanel({ projectId }: { projectId: string }) {
   const [selectedAgents, setSelectedAgents] = useState<string[]>(agents.map((a) => a.id))
@@ -46,6 +46,14 @@ export function AgentPanel({ projectId }: { projectId: string }) {
         }
         if (status.status === 'failed') {
           setError(status.error || 'Pipeline failed')
+          return null
+        }
+        if (status.status === 'unknown' || status.error === 'Job not found') {
+          setError('Job not found. It may have been lost due to a server restart.')
+          return null
+        }
+        if (status.status === 'cancelled') {
+          setError('Job was cancelled.')
           return null
         }
       } catch {
@@ -111,6 +119,8 @@ export function AgentPanel({ projectId }: { projectId: string }) {
         return <CheckCircle className="h-4 w-4 text-emerald-400" />
       case 'failed':
         return <XCircle className="h-4 w-4 text-red-400" />
+      case 'skipped':
+        return <MinusCircle className="h-4 w-4 text-gray-400" />
       default:
         return <Clock className="h-4 w-4 text-gray-500" />
     }

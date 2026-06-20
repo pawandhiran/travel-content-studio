@@ -61,8 +61,22 @@ def _register_agents() -> None:
         AGENT_REGISTRY[cls.name] = cls
 
 
+def _resolve_dependencies(agent_names: list[str]) -> list[str]:
+    """Expand *agent_names* to include all transitive dependencies."""
+    resolved: set[str] = set(agent_names)
+    queue: deque[str] = deque(agent_names)
+    while queue:
+        name = queue.popleft()
+        for dep in DEPENDENCY_GRAPH.get(name, []):
+            if dep not in resolved:
+                resolved.add(dep)
+                queue.append(dep)
+    return list(resolved)
+
+
 def _topological_sort(agent_names: list[str]) -> list[str]:
     """Return *agent_names* in dependency-first order (Kahn's algorithm)."""
+    agent_names = _resolve_dependencies(agent_names)
     relevant = set(agent_names)
     in_degree: dict[str, int] = {n: 0 for n in relevant}
     adj: dict[str, list[str]] = defaultdict(list)

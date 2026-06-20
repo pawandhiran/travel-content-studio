@@ -15,6 +15,8 @@ import {
   Download,
   Loader2,
   ChevronDown,
+  ChevronUp,
+  Bot,
   Check,
   AlertCircle
 } from 'lucide-react'
@@ -315,6 +317,30 @@ function ModelManagementCard({
   downloadResult: { model: string; success: boolean; message: string } | null
 }) {
   const [customModel, setCustomModel] = useState('')
+  const [expanded, setExpanded] = useState(false)
+
+  const installedCount = availableModels.length
+
+  if (!expanded) {
+    return (
+      <div
+        onClick={() => setExpanded(true)}
+        className="cursor-pointer rounded-xl border border-gray-800 bg-gray-900/50 p-4 transition-colors hover:border-gray-700 hover:bg-gray-900"
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-800">
+            <Bot className="h-5 w-5 text-brand-400" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-gray-500">AI Model</p>
+            <p className="text-sm font-medium text-white">{activeModel || 'No model selected'}</p>
+            <p className="text-xs text-gray-500">{installedCount} installed</p>
+          </div>
+          <ChevronDown className="h-4 w-4 shrink-0 text-gray-500" />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
@@ -322,10 +348,17 @@ function ModelManagementCard({
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-800">
           <MonitorPlay className="h-5 w-5 text-brand-400" />
         </div>
-        <div>
+        <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold text-white">AI Model</h3>
           <p className="text-xs text-gray-500">Powered by Ollama</p>
         </div>
+        <button
+          onClick={() => setExpanded(false)}
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-800 hover:text-gray-300"
+          title="Collapse"
+        >
+          <ChevronUp className="h-4 w-4" />
+        </button>
       </div>
 
       {/* Active model selector */}

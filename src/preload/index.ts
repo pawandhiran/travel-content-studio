@@ -13,8 +13,6 @@ const api = {
   openInExplorer: (path: string): Promise<void> => ipcRenderer.invoke('open-in-explorer', path),
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke('open-external', url),
   checkDependencies: () => ipcRenderer.invoke('check-dependencies'),
-  runSetupScript: (script: string): Promise<{ success: boolean; output: string }> =>
-    ipcRenderer.invoke('run-setup-script', script),
   installOllama: (): Promise<{ success: boolean; message: string }> =>
     ipcRenderer.invoke('install-ollama'),
   installFfmpeg: (): Promise<{ success: boolean; message: string }> =>

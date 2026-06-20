@@ -71,7 +71,16 @@ export class BackendManager {
       this.running = false
     })
 
-    await this.waitForHealth()
+    try {
+      await this.waitForHealth()
+    } catch (err) {
+      console.error('[BackendManager] Health check failed, killing orphan process')
+      if (this.process && !this.process.killed) {
+        this.process.kill('SIGTERM')
+      }
+      this.running = false
+      throw err
+    }
     this.running = true
     console.log('[BackendManager] Backend is ready')
   }

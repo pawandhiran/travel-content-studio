@@ -18,12 +18,19 @@ function whichCommand(): string {
   return process.platform === 'win32' ? 'where' : 'which'
 }
 
+function safeEnv(): NodeJS.ProcessEnv {
+  const e = { ...process.env }
+  delete e.ELECTRON_RUN_AS_NODE
+  return e
+}
+
 function findBinary(name: string): string | null {
   try {
     const result = execSync(`${whichCommand()} ${name}`, {
       encoding: 'utf-8',
       timeout: 5000,
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: safeEnv()
     })
     return result.trim().split('\n')[0] || null
   } catch {

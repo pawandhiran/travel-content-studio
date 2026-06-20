@@ -3,6 +3,7 @@
 import asyncio
 import time
 from datetime import datetime, timezone
+from datetime import timedelta
 from typing import Any, Callable, Coroutine
 
 from ulid import ULID
@@ -12,6 +13,9 @@ from core.logging_config import get_job_logger, get_logger
 from models.db_models import JobStatus
 
 log = get_logger(__name__)
+
+_JOB_RETENTION = timedelta(minutes=30)
+_TERMINAL_STATUSES = {JobStatus.completed, JobStatus.failed, JobStatus.cancelled}
 
 
 class TaskQueue:
@@ -27,6 +31,28 @@ class TaskQueue:
             cls._instance = inst
         return cls._instance
 
+    def _cleanup_old_jobs(self) -> None:
+        """Remove terminal jobs whose completed_at is older than _JOB_RETENTION."""
+        now = datetime.now(timezone.utc)
+        stale: list[str] = []
+        for job_id, job in self._jobs.items():
+            if job["status"] not in _TERMINAL_STATUSES:
+                continue
+            completed_at = job.get("completed_at")
+            if not completed_at:
+                continue
+            try:
+                ts = datetime.fromisoformat(completed_at)
+            except (TypeError, ValueError):
+                continue
+            if now - ts > _JOB_RETENTION:
+                stale.append(job_id)
+        for job_id in stale:
+            self._jobs.pop(job_id, None)
+            self._tasks.pop(job_id, None)
+        if stale:
+            log.info("jobs_pruned", count=len(stale))
+
     async def submit(
         self,
         job_type: str,
@@ -39,6 +65,7 @@ class TaskQueue:
         first two arguments. update_progress is an async callable:
             await update_progress(percent: int, message: str)
         """
+        self._cleanup_old_jobs()
         job_id = str(ULID())
 
         self._jobs[job_id] = {

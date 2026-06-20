@@ -1,8 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
-import { apiClient } from '../../services/apiClient'
+import { apiClient, BASE_URL } from '../../services/apiClient'
 import { FileText, Download, Play, Mic, AlertCircle } from 'lucide-react'
-
-const API_BASE = 'http://127.0.0.1:8420/api/v1'
 
 interface Video {
   id: string
@@ -114,6 +112,14 @@ export function TranscriptPanel({ projectId }: { projectId: string }) {
           setError(status.error || 'Transcription failed')
           return false
         }
+        if (status.status === 'unknown' || status.error === 'Job not found') {
+          setError('Job not found. It may have been lost due to a server restart.')
+          return false
+        }
+        if (status.status === 'cancelled') {
+          setError('Job was cancelled.')
+          return false
+        }
       } catch {
         // Job may not be registered yet on first poll
       }
@@ -155,7 +161,7 @@ export function TranscriptPanel({ projectId }: { projectId: string }) {
     if (!selectedVideoId) return
     try {
       const response = await fetch(
-        `${API_BASE}/videos/${selectedVideoId}/subtitles?format=srt`
+        `${BASE_URL}/videos/${selectedVideoId}/subtitles?format=srt`
       )
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)

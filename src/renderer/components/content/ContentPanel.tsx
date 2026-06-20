@@ -72,6 +72,14 @@ export function ContentPanel({ projectId }: { projectId: string }) {
           setError(status.error || 'Generation failed')
           return false
         }
+        if (status.status === 'unknown' || status.error === 'Job not found') {
+          setError('Job not found. It may have been lost due to a server restart.')
+          return false
+        }
+        if (status.status === 'cancelled') {
+          setError('Job was cancelled.')
+          return false
+        }
       } catch {
         // Job may not be registered yet on first poll, keep trying
       }
@@ -203,10 +211,34 @@ export function ContentPanel({ projectId }: { projectId: string }) {
                   )}
                 </button>
                 <button
-                  onClick={() => apiClient.post(`/content/${item.id}/regenerate`).then(fetchContent)}
-                  className="rounded p-1.5 text-gray-500 hover:bg-gray-800 hover:text-gray-300"
+                  onClick={async () => {
+                    setGenerating(true)
+                    setError('')
+                    setProgressMsg('Regenerating...')
+                    try {
+                      const resp = await apiClient.post<{ id: string }>(`/content/${item.id}/regenerate`)
+                      if (resp.id) {
+                        setProgressMsg('Regenerating with AI... this may take a minute')
+                        const success = await pollJob(resp.id)
+                        if (success) {
+                          setProgressMsg('')
+                          await fetchContent()
+                        }
+                      } else {
+                        await fetchContent()
+                      }
+                    } catch (err: unknown) {
+                      const msg = err instanceof Error ? err.message : String(err)
+                      setError(`Regeneration failed: ${msg}`)
+                    } finally {
+                      setGenerating(false)
+                      setProgressMsg('')
+                    }
+                  }}
+                  disabled={generating}
+                  className="rounded p-1.5 text-gray-500 hover:bg-gray-800 hover:text-gray-300 disabled:opacity-50"
                 >
-                  <RefreshCw className="h-4 w-4" />
+                  <RefreshCw className={`h-4 w-4 ${generating ? 'animate-spin' : ''}`} />
                 </button>
               </div>
             </div>

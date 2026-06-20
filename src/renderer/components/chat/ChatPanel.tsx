@@ -4,8 +4,6 @@ import {
   Paperclip,
   Bot,
   User,
-  ChevronDown,
-  ChevronUp,
   Loader2,
   Image,
   Video,
@@ -55,6 +53,7 @@ interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   attachments?: string[]
+  directories?: string[]
   actions?: ActionTaken[]
   suggestions?: string[]
   timestamp: Date
@@ -162,10 +161,22 @@ function AttachmentPreview({ path, onRemove, isDir }: { path: string; onRemove: 
 
 function ActionChip({ action }: { action: ActionTaken }) {
   const [expanded, setExpanded] = useState(false)
+  const chipRef = useRef<HTMLDivElement>(null)
   const success = action.result.status === 'success'
 
+  useEffect(() => {
+    if (!expanded) return
+    const handler = (e: MouseEvent) => {
+      if (!chipRef.current?.contains(e.target as Node)) {
+        setExpanded(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [expanded])
+
   return (
-    <div className="relative inline-block">
+    <div ref={chipRef} className="relative inline-block">
       <button
         onClick={() => setExpanded(!expanded)}
         className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors ${
@@ -626,8 +637,11 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [showPalette, setShowPalette] = useState(false)
   const [activeModel, setActiveModel] = useState<string>('')
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [thinkingMessage, setThinkingMessage] = useState('')
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -637,11 +651,14 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
     scrollToBottom()
   }, [messages, scrollToBottom])
 
-  // Load chat history on mount
+  // Load chat history on mount or when projectId changes
   useEffect(() => {
+    setMessages([])
     const loadHistory = async () => {
+      setHistoryLoading(true)
       try {
-        const data = await apiClient.get<{ messages: Array<{ role: string; content: string; timestamp: string; metadata?: Record<string, unknown> }> }>('/chat/history')
+        const url = projectId ? `/chat/history?project_id=${projectId}` : '/chat/history'
+        const data = await apiClient.get<{ messages: Array<{ role: string; content: string; timestamp: string; metadata?: Record<string, unknown> }> }>(url)
         if (data.messages && data.messages.length > 0) {
           const loaded: ChatMessage[] = data.messages.map((m, i) => ({
             id: `history-${i}`,
@@ -652,6 +669,7 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
           setMessages(loaded)
         }
       } catch { /* history load is optional */ }
+      finally { setHistoryLoading(false) }
     }
     loadHistory()
   }, [projectId])
@@ -667,6 +685,17 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
   useEffect(() => {
     setShowPalette(input.startsWith('/') && !input.includes(' '))
   }, [input])
+
+  // Elapsed timer while AI is thinking
+  useEffect(() => {
+    if (!sending) {
+      setElapsedSeconds(0)
+      return
+    }
+    setElapsedSeconds(0)
+    const interval = setInterval(() => setElapsedSeconds((s) => s + 1), 1000)
+    return () => clearInterval(interval)
+  }, [sending])
 
   const handleFeedback = useCallback(
     async (messageId: string, rating: 'up' | 'down') => {
@@ -690,19 +719,28 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
     const trimmed = text.trim()
     if (!trimmed && files.length === 0 && dirs.length === 0) return
 
-    const allAttachments = [...files, ...dirs]
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: 'user',
       content: trimmed,
-      attachments: allAttachments.length > 0 ? allAttachments : undefined,
+      attachments: files.length > 0 ? files : undefined,
+      directories: dirs.length > 0 ? dirs : undefined,
       timestamp: new Date()
     }
 
     setMessages((prev) => [...prev, userMessage])
     setInput('')
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+    }
     setAttachments([])
     setDirectories([])
+    const totalFiles = files.length + dirs.length
+    setThinkingMessage(
+      totalFiles > 0
+        ? `Processing ${totalFiles} file${totalFiles !== 1 ? 's' : ''} with ${activeModel || 'AI'}...`
+        : `Thinking with ${activeModel || 'AI'}...`
+    )
     setSending(true)
 
     try {
@@ -725,7 +763,13 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
         timestamp: new Date()
       }
 
-      setMessages((prev) => [...prev, aiMessage])
+      setMessages((prev) => {
+        const updated = [...prev, aiMessage]
+        if (trimmed.toLowerCase() === '/forget') {
+          return updated.slice(-2)
+        }
+        return updated
+      })
     } catch (err) {
       const aiMessage: ChatMessage = {
         id: crypto.randomUUID(),
@@ -736,30 +780,33 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
       setMessages((prev) => [...prev, aiMessage])
     } finally {
       setSending(false)
+      setThinkingMessage('')
     }
-  }, [projectId])
+  }, [projectId, activeModel])
 
   const handleSend = () => {
     sendMessage(input, attachments, directories)
   }
 
   const handleResend = (msg: ChatMessage) => {
-    sendMessage(msg.content, msg.attachments?.filter(a => !a.endsWith('/')) || [], msg.attachments?.filter(a => a.endsWith('/')) || [])
+    sendMessage(msg.content, msg.attachments || [], msg.directories || [])
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
+      if (sending) return
       handleSend()
     }
   }
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files) return
-    const paths = Array.from(files).map((f) => (f as any).path || f.name)
-    setAttachments((prev) => [...prev, ...paths])
-    e.target.value = ''
+  const handleFileSelect = async () => {
+    try {
+      const paths = await window.api.selectFiles({ multiSelections: true })
+      if (paths && paths.length > 0) {
+        setAttachments((prev) => [...prev, ...paths])
+      }
+    } catch { /* user cancelled */ }
   }
 
   const handleFolderSelect = async () => {
@@ -797,7 +844,12 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
             <button
               onClick={() => {
                 setMessages([])
-                apiClient.delete('/chat/history').catch(() => {})
+                setInput('')
+                setAttachments([])
+                setDirectories([])
+                setShowPalette(false)
+                const url = projectId ? `/chat/history?project_id=${projectId}` : '/chat/history'
+                apiClient.delete(url).catch(() => {})
               }}
               className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-800 hover:text-gray-300"
               title="New chat"
@@ -820,7 +872,11 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
 
         {/* Messages area */}
         <div className="flex-1 overflow-y-auto p-4">
-          {messages.length === 0 ? (
+          {historyLoading ? (
+            <div className="flex h-full items-center justify-center">
+              <Loader2 className="h-5 w-5 animate-spin text-gray-500" />
+            </div>
+          ) : messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-4">
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-600/20">
                 <Bot className="h-8 w-8 text-brand-400" />
@@ -984,7 +1040,12 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
                   </div>
                   <div className="flex items-center gap-2 rounded-2xl bg-gray-800 px-4 py-3">
                     <Loader2 className="h-4 w-4 animate-spin text-brand-400" />
-                    <span className="text-sm text-gray-400">Thinking...</span>
+                    <span className="text-sm text-gray-400">
+                      {thinkingMessage || 'Thinking...'}
+                      {elapsedSeconds > 0 && (
+                        <span className="ml-1 text-gray-500">({elapsedSeconds}s)</span>
+                      )}
+                    </span>
                   </div>
                 </div>
               )}
@@ -1022,7 +1083,7 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
 
               <div className="flex items-end gap-2 rounded-xl border border-gray-700 bg-gray-800/50 p-2 focus-within:border-brand-600/50">
                 <button
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={handleFileSelect}
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-700 hover:text-gray-200"
                   title="Attach files (photos, videos, zip, any file)"
                 >
@@ -1035,16 +1096,15 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
                 >
                   <FolderOpen className="h-4 w-4" />
                 </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  className="hidden"
-                  onChange={handleFileSelect}
-                />
                 <textarea
+                  ref={textareaRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
+                  onInput={(e) => {
+                    const target = e.target as HTMLTextAreaElement
+                    target.style.height = 'auto'
+                    target.style.height = target.scrollHeight + 'px'
+                  }}
                   onKeyDown={handleKeyDown}
                   placeholder="Ask anything... or type / for commands"
                   rows={1}

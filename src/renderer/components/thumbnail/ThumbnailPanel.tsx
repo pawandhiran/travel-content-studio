@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { apiClient } from '../../services/apiClient'
+import { apiClient, BASE_URL } from '../../services/apiClient'
 import { Image, Sparkles, Download, AlertCircle } from 'lucide-react'
 
 interface Thumbnail {
@@ -50,6 +50,14 @@ export function ThumbnailPanel({ projectId }: { projectId: string }) {
         if (status.status === 'completed') return true
         if (status.status === 'failed') {
           setError(status.error || 'Generation failed')
+          return false
+        }
+        if (status.status === 'unknown' || status.error === 'Job not found') {
+          setError('Job not found. It may have been lost due to a server restart.')
+          return false
+        }
+        if (status.status === 'cancelled') {
+          setError('Job was cancelled.')
           return false
         }
       } catch {
@@ -163,11 +171,21 @@ export function ThumbnailPanel({ projectId }: { projectId: string }) {
             >
               <div className="relative aspect-video bg-gray-800">
                 <img
-                  src={`http://127.0.0.1:8420/api/v1/thumbnails/${thumb.id}/image`}
+                  src={`${BASE_URL}/thumbnails/${thumb.id}/image`}
                   alt={thumb.prompt}
                   className="h-full w-full object-cover"
                 />
-                <button className="absolute bottom-2 right-2 rounded bg-black/70 p-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+                <button
+                  onClick={() => {
+                    const link = document.createElement('a')
+                    link.href = `http://127.0.0.1:8420/api/v1/thumbnails/${thumb.id}/image`
+                    link.download = `thumbnail-${thumb.id}.png`
+                    document.body.appendChild(link)
+                    link.click()
+                    document.body.removeChild(link)
+                  }}
+                  className="absolute bottom-2 right-2 rounded bg-black/70 p-1.5 opacity-0 transition-opacity group-hover:opacity-100"
+                >
                   <Download className="h-4 w-4 text-white" />
                 </button>
               </div>

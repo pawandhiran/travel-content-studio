@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { apiClient } from '../../services/apiClient'
+import { apiClient, BASE_URL } from '../../services/apiClient'
 import { Mic, Play, Pause, Download, AlertCircle } from 'lucide-react'
 
 interface Voice {
@@ -67,6 +67,14 @@ export function VoiceoverPanel({ projectId }: { projectId: string }) {
           setError(status.error || 'Generation failed')
           return false
         }
+        if (status.status === 'unknown' || status.error === 'Job not found') {
+          setError('Job not found. It may have been lost due to a server restart.')
+          return false
+        }
+        if (status.status === 'cancelled') {
+          setError('Job was cancelled.')
+          return false
+        }
       } catch {
         // Job may not be registered yet, keep polling
       }
@@ -117,7 +125,7 @@ export function VoiceoverPanel({ projectId }: { projectId: string }) {
       audioRef.current.pause()
       audioRef.current = null
     }
-    const audio = new Audio(`http://127.0.0.1:8420/api/v1/voiceovers/${id}/audio`)
+    const audio = new Audio(`${BASE_URL}/voiceovers/${id}/audio`)
     audioRef.current = audio
     audio.play().catch(() => setError('Failed to play audio'))
     audio.onended = () => { setPlaying(null); audioRef.current = null }
@@ -126,7 +134,7 @@ export function VoiceoverPanel({ projectId }: { projectId: string }) {
 
   const handleDownload = (id: string) => {
     const a = document.createElement('a')
-    a.href = `http://127.0.0.1:8420/api/v1/voiceovers/${id}/audio`
+    a.href = `${BASE_URL}/voiceovers/${id}/audio`
     a.download = `voiceover-${id}.wav`
     a.click()
   }

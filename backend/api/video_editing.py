@@ -3,11 +3,11 @@
 import asyncio
 from typing import Callable
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
-from core.errors import NotFoundError
+from core.errors import NotFoundError, ProcessingError
 from core.task_queue import task_queue
 from models.db_models import Video
 
@@ -51,6 +51,8 @@ async def smart_stitch(
 ):
     """Intelligently stitch multiple clips into a cohesive reel."""
     video_ids = body.get("video_ids", [])
+    if not video_ids:
+        raise HTTPException(status_code=422, detail="video_ids must be a non-empty list")
     duration = body.get("duration", 30)
     transition = body.get("transition", "mixed")
     aspect = body.get("aspect", "9:16")
@@ -88,7 +90,10 @@ async def color_grade(
     db: AsyncSession = Depends(get_db),
 ):
     """Apply cinematic color grading to a video."""
-    video_path = await _get_video_path(db, body["video_id"])
+    video_id = body.get("video_id")
+    if not video_id:
+        raise HTTPException(status_code=422, detail="video_id is required")
+    video_path = await _get_video_path(db, video_id)
     preset = body.get("preset", "cinematic")
     vignette = body.get("vignette", 0)
     grain = body.get("grain", 0)
@@ -117,7 +122,10 @@ async def audio_enhance(
     db: AsyncSession = Depends(get_db),
 ):
     """Enhance audio with loudness normalization, noise reduction, and optional music."""
-    video_path = await _get_video_path(db, body["video_id"])
+    video_id = body.get("video_id")
+    if not video_id:
+        raise HTTPException(status_code=422, detail="video_id is required")
+    video_path = await _get_video_path(db, video_id)
     preset = body.get("preset", "youtube")
     add_music_path = body.get("add_music_path")
     music_volume = body.get("music_volume", 0.15)
@@ -147,7 +155,9 @@ async def animated_captions(
     db: AsyncSession = Depends(get_db),
 ):
     """Add TikTok-style animated captions to a video."""
-    video_id = body["video_id"]
+    video_id = body.get("video_id")
+    if not video_id:
+        raise HTTPException(status_code=422, detail="video_id is required")
     video_path = await _get_video_path(db, video_id)
     style = body.get("style", "modern")
     animation = body.get("animation", "pop")
@@ -172,6 +182,9 @@ async def animated_captions(
             if transcript and transcript.segments_json:
                 segments = json.loads(transcript.segments_json)
 
+        if not segments:
+            raise ProcessingError("No transcript found. Please transcribe the video first.")
+
         settings = get_settings()
         output = Path(settings.projects_dir) / f"captioned_{job_id}.mp4"
         await update_progress(10, "Loading video")
@@ -192,7 +205,10 @@ async def speed_ramp(
     db: AsyncSession = Depends(get_db),
 ):
     """Apply speed changes, slow-mo, or timelapse effects."""
-    video_path = await _get_video_path(db, body["video_id"])
+    video_id = body.get("video_id")
+    if not video_id:
+        raise HTTPException(status_code=422, detail="video_id is required")
+    video_path = await _get_video_path(db, video_id)
 
     async def _run(job_id, update_progress):
         from pathlib import Path
@@ -243,7 +259,10 @@ async def auto_reframe(
     db: AsyncSession = Depends(get_db),
 ):
     """Smart-crop video for a target aspect ratio with face detection."""
-    video_path = await _get_video_path(db, body["video_id"])
+    video_id = body.get("video_id")
+    if not video_id:
+        raise HTTPException(status_code=422, detail="video_id is required")
+    video_path = await _get_video_path(db, video_id)
     target_aspect = body.get("target_aspect", "9:16")
 
     async def _run(job_id, update_progress):
@@ -270,7 +289,10 @@ async def branding(
     db: AsyncSession = Depends(get_db),
 ):
     """Add watermarks, end cards, subscribe buttons, and lower thirds."""
-    video_path = await _get_video_path(db, body["video_id"])
+    video_id = body.get("video_id")
+    if not video_id:
+        raise HTTPException(status_code=422, detail="video_id is required")
+    video_path = await _get_video_path(db, video_id)
 
     async def _run(job_id, update_progress):
         from pathlib import Path
@@ -299,7 +321,10 @@ async def hook_optimize(
     db: AsyncSession = Depends(get_db),
 ):
     """Move the most engaging moment to the first 3 seconds."""
-    video_path = await _get_video_path(db, body["video_id"])
+    video_id = body.get("video_id")
+    if not video_id:
+        raise HTTPException(status_code=422, detail="video_id is required")
+    video_path = await _get_video_path(db, video_id)
     hook_duration = body.get("hook_duration", 3.0)
 
     async def _run(job_id, update_progress):
@@ -327,6 +352,8 @@ async def music_reel(
 ):
     """Create a beat-synced music reel from multiple clips."""
     video_ids = body.get("video_ids", [])
+    if not video_ids:
+        raise HTTPException(status_code=422, detail="video_ids must be a non-empty list")
     video_paths = []
     for vid in video_ids:
         video_paths.append(await _get_video_path(db, vid))
@@ -360,7 +387,10 @@ async def quality_check(
     db: AsyncSession = Depends(get_db),
 ):
     """Run pre-publish quality check on a video."""
-    video_path = await _get_video_path(db, body["video_id"])
+    video_id = body.get("video_id")
+    if not video_id:
+        raise HTTPException(status_code=422, detail="video_id is required")
+    video_path = await _get_video_path(db, video_id)
     platform = body.get("platform")
     strict = body.get("strict", False)
 
@@ -377,7 +407,10 @@ async def smart_thumbnail(
     db: AsyncSession = Depends(get_db),
 ):
     """Extract the best frame from video as a smart thumbnail."""
-    video_path = await _get_video_path(db, body["video_id"])
+    video_id = body.get("video_id")
+    if not video_id:
+        raise HTTPException(status_code=422, detail="video_id is required")
+    video_path = await _get_video_path(db, video_id)
     platform = body.get("platform", "youtube")
     text = body.get("text")
 

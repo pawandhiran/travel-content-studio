@@ -1,6 +1,6 @@
 """Chat assistant API endpoints -- messaging, rules, skills, and history."""
 
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -57,7 +57,7 @@ class RunSkillRequest(BaseModel):
 
 class FeedbackRequest(BaseModel):
     message_id: str
-    rating: str  # "up" or "down"
+    rating: Literal["up", "down"]
     project_id: Optional[str] = None
 
 

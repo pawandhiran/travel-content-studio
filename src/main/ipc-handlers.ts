@@ -45,6 +45,12 @@ function downloadFile(
   })
 }
 
+function safeEnv(): NodeJS.ProcessEnv {
+  const e = { ...process.env }
+  delete e.ELECTRON_RUN_AS_NODE
+  return e
+}
+
 export function setupIpcHandlers(
   backendManager: BackendManager,
   ollamaManager: OllamaManager
@@ -92,6 +98,9 @@ export function setupIpcHandlers(
   })
 
   ipcMain.handle('open-external', async (_, url: string) => {
+    if (!/^https?:\/\//i.test(url)) {
+      throw new Error('Only http and https URLs are allowed')
+    }
     shell.openExternal(url)
   })
 
@@ -99,30 +108,17 @@ export function setupIpcHandlers(
     return checkDependencies()
   })
 
-  ipcMain.handle('run-setup-script', async (_, script: string) => {
-    try {
-      const output = execSync(script, {
-        encoding: 'utf-8',
-        timeout: 300_000,
-        stdio: ['pipe', 'pipe', 'pipe']
-      })
-      return { success: true, output }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err)
-      return { success: false, output: message }
-    }
-  })
-
   ipcMain.handle('install-ollama', async (event) => {
     try {
       if (isMac) {
         if (existsSync('/opt/homebrew/bin/brew') || existsSync('/usr/local/bin/brew')) {
-          execSync('brew install --cask ollama', { encoding: 'utf-8', timeout: 300_000 })
+          execSync('brew install --cask ollama', { encoding: 'utf-8', timeout: 300_000, env: safeEnv() })
         } else {
           execSync('curl -fsSL https://ollama.com/install.sh | sh', {
             encoding: 'utf-8',
             timeout: 300_000,
-            shell: '/bin/bash'
+            shell: '/bin/bash',
+            env: safeEnv()
           })
         }
         return { success: true, message: 'Ollama installed via Homebrew' }
@@ -131,7 +127,7 @@ export function setupIpcHandlers(
         await downloadFile('https://ollama.com/download/OllamaSetup.exe', dest, (pct) => {
           event.sender.send('install-progress', { component: 'ollama', percent: pct })
         })
-        execSync(`"${dest}" /VERYSILENT /NORESTART`, { timeout: 300_000 })
+        execSync(`"${dest}" /VERYSILENT /NORESTART`, { timeout: 300_000, env: safeEnv() })
         try { unlinkSync(dest) } catch { /* cleanup best effort */ }
         return { success: true, message: 'Ollama installed silently' }
       }
@@ -144,7 +140,7 @@ export function setupIpcHandlers(
     try {
       if (isMac) {
         if (existsSync('/opt/homebrew/bin/brew') || existsSync('/usr/local/bin/brew')) {
-          execSync('brew install ffmpeg', { encoding: 'utf-8', timeout: 600_000 })
+          execSync('brew install ffmpeg', { encoding: 'utf-8', timeout: 600_000, env: safeEnv() })
         } else {
           return { success: false, message: 'Homebrew not found. Install Homebrew first: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"' }
         }
@@ -156,7 +152,7 @@ export function setupIpcHandlers(
           event.sender.send('install-progress', { component: 'ffmpeg', percent: pct })
         })
         const extractDir = join(getTempDir(), 'ffmpeg-extract')
-        execSync(`powershell -Command "Expand-Archive -Path '${zipDest}' -DestinationPath '${extractDir}' -Force"`, { timeout: 120_000 })
+        execSync(`powershell -Command "Expand-Archive -Path '${zipDest}' -DestinationPath '${extractDir}' -Force"`, { timeout: 120_000, env: safeEnv() })
 
         const binDir = join(app.getPath('userData'), 'bin')
         if (!existsSync(binDir)) mkdirSync(binDir, { recursive: true })
@@ -242,7 +238,8 @@ export function setupIpcHandlers(
         cwd: appPath,
         encoding: 'utf-8',
         timeout: 30_000,
-        stdio: ['pipe', 'pipe', 'pipe']
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: safeEnv()
       })
 
       const alreadyUpToDate = output.includes('Already up to date')

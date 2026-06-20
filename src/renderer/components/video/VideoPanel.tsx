@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { apiClient } from '../../services/apiClient'
+import { apiClient, BASE_URL } from '../../services/apiClient'
 import { Upload, Play, Trash2, FileVideo, AlertCircle } from 'lucide-react'
 
 interface Video {
@@ -60,6 +60,7 @@ export function VideoPanel({ projectId }: { projectId: string }) {
   }
 
   const handleDelete = async (videoId: string) => {
+    if (!window.confirm('Are you sure you want to delete this video?')) return
     try {
       await apiClient.delete(`/videos/${videoId}`)
       setVideos(prev => prev.filter((v) => v.id !== videoId))
@@ -122,7 +123,7 @@ export function VideoPanel({ projectId }: { projectId: string }) {
             >
               <div className="relative aspect-video bg-gray-800 flex items-center justify-center overflow-hidden">
                 <img
-                  src={`http://127.0.0.1:8420/api/v1/videos/${video.id}/thumbnail`}
+                  src={`${BASE_URL}/videos/${video.id}/thumbnail`}
                   alt={video.filename}
                   className="h-full w-full object-cover"
                   onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}

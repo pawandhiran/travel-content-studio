@@ -13,7 +13,7 @@ import httpx
 
 from config import get_settings
 from core.logging_config import get_logger
-from core.model_router import ModelRouter, TASK_MODEL_MAP
+from core.model_router import ModelRouter
 from core.chat_memory import ChatMemory
 from core.user_rules import UserRulesManager
 from core.feedback_engine import feedback_engine
@@ -85,7 +85,6 @@ Respond in JSON:
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".tiff", ".bmp"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v", ".insv"}
 ARCHIVE_EXTENSIONS = {".zip"}
-DOCUMENT_EXTENSIONS = {".txt", ".md", ".csv", ".json", ".pdf", ".doc", ".docx"}
 
 # Keyword-based intent classification for dynamic model routing
 INTENT_KEYWORDS: dict[str, list[str]] = {
@@ -118,24 +117,55 @@ def _classify_attachments(
     return images, videos, archives, other
 
 
+_ZIP_MAX_FILES = 500
+_ZIP_MAX_TOTAL_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB
+_RGLOB_MAX_DEPTH = 100
+
+
 def _expand_directories_and_zips(paths: list[str]) -> list[str]:
     """Expand directories to their file contents and extract zip file listings."""
     expanded: list[str] = []
     for p in paths:
         path = Path(p)
         if path.is_dir():
+            base_depth = len(path.parts)
             for child in sorted(path.rglob("*")):
+                if len(child.parts) - base_depth > _RGLOB_MAX_DEPTH:
+                    continue
                 if child.is_file() and not child.name.startswith("."):
                     expanded.append(str(child))
         elif path.suffix.lower() == ".zip" and path.is_file():
             try:
                 with zipfile.ZipFile(path, "r") as zf:
-                    extract_dir = Path(get_settings().data_dir) / "chat_uploads" / path.stem
+                    members = zf.infolist()
+                    if len(members) > _ZIP_MAX_FILES:
+                        raise ValueError(
+                            f"Zip contains {len(members)} entries (limit {_ZIP_MAX_FILES})"
+                        )
+                    total_size = sum(m.file_size for m in members)
+                    if total_size > _ZIP_MAX_TOTAL_BYTES:
+                        raise ValueError(
+                            f"Zip uncompressed size {total_size} exceeds limit "
+                            f"{_ZIP_MAX_TOTAL_BYTES}"
+                        )
+
+                    extract_dir = (
+                        Path(get_settings().data_dir) / "chat_uploads" / path.stem
+                    )
                     extract_dir.mkdir(parents=True, exist_ok=True)
+                    resolved_base = extract_dir.resolve()
+
+                    for member in members:
+                        target = (extract_dir / member.filename).resolve()
+                        if not target.is_relative_to(resolved_base):
+                            raise ValueError(
+                                f"Zip member escapes extract directory: {member.filename}"
+                            )
+
                     zf.extractall(extract_dir)
                     for member in zf.namelist():
                         member_path = extract_dir / member
-                        if member_path.is_file():
+                        if member_path.resolve().is_file():
                             expanded.append(str(member_path))
             except Exception as exc:
                 log.warning("zip_extraction_failed", path=p, error=str(exc))
@@ -187,20 +217,11 @@ def _extract_json(text: str) -> dict[str, Any]:
     if brace_start == -1:
         return {"reply": text, "tool_calls": []}
 
-    depth = 0
-    end = brace_start
-    for i in range(brace_start, len(text)):
-        if text[i] == "{":
-            depth += 1
-        elif text[i] == "}":
-            depth -= 1
-            if depth == 0:
-                end = i + 1
-                break
-
+    decoder = json.JSONDecoder()
     try:
-        return json.loads(text[brace_start:end])
-    except json.JSONDecodeError:
+        obj, _ = decoder.raw_decode(text, brace_start)
+        return obj
+    except (json.JSONDecodeError, ValueError):
         return {"reply": text, "tool_calls": []}
 
 
@@ -220,6 +241,11 @@ TOOL_REGISTRY: dict[str, str] = {
     "enhance_photos": "/stock-photos/enhance",
     "quality_check": "/video-editing/quality-check",
     "run_agents": "/agents",
+}
+
+PROJECT_SCOPED_TOOLS = {
+    "import_video", "transcribe", "generate_content", "generate_thumbnail",
+    "generate_voiceover", "generate_blog", "run_agents",
 }
 
 # Slash-command patterns detected before sending to the LLM
@@ -296,19 +322,30 @@ class ChatAgent:
 
         user_content = "\n\n".join(user_parts)
 
+        system_prompt = self._build_system_prompt(project_id)
+
         self.memory.add_message(
             project_id, "user", message,
             metadata={"attachments": expanded} if expanded else None,
         )
 
-        system_prompt = self._build_system_prompt(project_id)
+        # Build multi-turn message history for proper conversation context
+        history_messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
+        recent_history = self.memory.get_recent_messages(project_id, limit=10)
+        for hist_msg in recent_history:
+            role = hist_msg.get("role", "user")
+            content = hist_msg.get("content", "")
+            if role in ("user", "assistant") and content:
+                history_messages.append({"role": role, "content": content})
+        history_messages.append({"role": "user", "content": user_content})
 
         # Dynamic model selection: classify intent, then pick the best model
         intent = _classify_intent(message)
-        if images:
-            intent = "photo_scene_detect"
-        elif videos:
-            intent = "script"
+        if intent == "chat":
+            if images:
+                intent = "photo_scene_detect"
+            elif videos:
+                intent = "script"
 
         # Check if user has selected a specific model on the dashboard
         from core.database import AsyncSessionLocal
@@ -322,11 +359,15 @@ class ChatAgent:
         except Exception:
             pass
 
-        model = active_model or await self._router.get_model(intent)
+        vision_tasks = {"photo_scene_detect", "image_description", "thumbnail_analysis"}
+        if active_model and intent not in vision_tasks:
+            model = active_model
+        else:
+            model = await self._router.get_model(intent)
         model_used = model
         log.info("chat_model_selected", intent=intent, model=model)
 
-        raw_reply = await self._call_ollama(model, system_prompt, user_content)
+        raw_reply = await self._call_ollama(model, system_prompt, user_content, messages=history_messages)
         parsed = _extract_json(raw_reply)
 
         reply_text = parsed.get("reply", raw_reply)
@@ -355,9 +396,11 @@ class ChatAgent:
                     {"tool": tool_name, "args": args, "result": result}
                 )
 
-        # Run review agent if tools were executed
+        # Run review agent only when tool errors occurred
         review_result = None
-        if actions_taken:
+        if actions_taken and any(
+            a["result"].get("status") == "error" for a in actions_taken
+        ):
             review_result = await self._run_review_agent(
                 message, reply_text, actions_taken
             )
@@ -544,20 +587,23 @@ class ChatAgent:
             return None
 
     async def _call_ollama(
-        self, model: str, system_prompt: str, user_message: str
+        self, model: str, system_prompt: str, user_message: str,
+        messages: list[dict[str, str]] | None = None,
     ) -> str:
-        payload = {
-            "model": model,
-            "messages": [
+        if messages is None:
+            messages = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message},
-            ],
+            ]
+        payload = {
+            "model": model,
+            "messages": messages,
             "stream": False,
             "format": "json",
         }
 
         try:
-            async with httpx.AsyncClient(timeout=120) as client:
+            async with httpx.AsyncClient(timeout=600) as client:
                 resp = await client.post(
                     f"{self._settings.ollama_host}/api/chat",
                     json=payload,
@@ -570,7 +616,7 @@ class ChatAgent:
             return '{"reply": "Sorry, the AI model took too long to respond. Please try again.", "tool_calls": []}'
         except Exception as exc:
             log.error("ollama_error", model=model, error=str(exc))
-            return f'{{"reply": "I encountered an error connecting to the AI model: {exc}", "tool_calls": []}}'
+            return json.dumps({"reply": f"I encountered an error connecting to the AI model: {exc}", "tool_calls": []})
 
     async def _execute_tool(
         self,
@@ -599,10 +645,13 @@ class ChatAgent:
                     args["file_path"] = attached_videos[0]
 
         base = f"http://127.0.0.1:{self._settings.api_port}/api/v1"
-        url = f"{base}{endpoint}"
+        if tool_name in PROJECT_SCOPED_TOOLS and project_id:
+            url = f"{base}/projects/{project_id}{endpoint}"
+        else:
+            url = f"{base}{endpoint}"
 
         try:
-            async with httpx.AsyncClient(timeout=60) as client:
+            async with httpx.AsyncClient(timeout=300) as client:
                 resp = await client.post(url, json=args)
                 if resp.status_code < 300:
                     return {"status": "success", "data": resp.json()}

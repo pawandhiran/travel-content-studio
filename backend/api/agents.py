@@ -39,7 +39,14 @@ async def run_agents(
             results = await orchestrator.run_pipeline(project_id, agent_names, context)
             await session.commit()
             await update_progress(100, "Agent pipeline complete")
-            agent_statuses = {k: "completed" if v.success else "failed" for k, v in results.items()}
+            agent_statuses = {}
+            for k, v in results.items():
+                if v.success:
+                    agent_statuses[k] = "completed"
+                elif v.error and v.error.startswith("Skipped:"):
+                    agent_statuses[k] = "skipped"
+                else:
+                    agent_statuses[k] = "failed"
             return {
                 "agents_run": list(results.keys()),
                 "results": agent_statuses,

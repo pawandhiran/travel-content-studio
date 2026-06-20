@@ -33,8 +33,13 @@ class FeedbackEngine:
             data_dir = get_settings().data_dir
         self._profile_path = data_dir / "user_profile.json"
         if self._profile_path.exists():
-            self._profile = json.loads(self._profile_path.read_text())
-            log.info("profile_loaded", preferences=len(self._profile))
+            try:
+                self._profile = json.loads(self._profile_path.read_text())
+                log.info("profile_loaded", preferences=len(self._profile))
+            except (json.JSONDecodeError, ValueError):
+                log.warning("profile_corrupt", path=str(self._profile_path))
+                self._profile_path.unlink(missing_ok=True)
+                self._profile = self._default_profile()
         else:
             self._profile = self._default_profile()
 

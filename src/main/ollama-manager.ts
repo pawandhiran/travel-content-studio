@@ -41,9 +41,17 @@ export class OllamaManager {
       this.running = false
     })
 
-    await this.waitForHealth()
-    this.running = true
-    console.log('[OllamaManager] Ollama is ready')
+    try {
+      await this.waitForHealth()
+      this.running = true
+      console.log('[OllamaManager] Ollama is ready')
+    } catch (err) {
+      console.error('[OllamaManager] Health check failed after spawning Ollama')
+      if (this.process && !this.process.killed) {
+        this.process.kill('SIGTERM')
+      }
+      this.running = false
+    }
   }
 
   async stop(): Promise<void> {

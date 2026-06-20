@@ -9,14 +9,16 @@ import {
   ChevronDown,
   ChevronUp,
   AlertTriangle,
+  AlertCircle,
   CheckCircle,
   XCircle,
   Loader2,
   Search,
   Clock,
-  Trash2
+  Trash2,
+  X
 } from 'lucide-react'
-import { apiClient } from '../../services/apiClient'
+import { apiClient, BASE_URL } from '../../services/apiClient'
 
 interface HistoryPhoto {
   path: string
@@ -64,6 +66,7 @@ interface JobStatus {
   status: string
   progress: number
   message: string
+  error?: string
   result?: StudioJobResult
 }
 
@@ -95,6 +98,7 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
   const [outputDir, setOutputDir] = useState<string>('')
   const [historyPhotos, setHistoryPhotos] = useState<HistoryPhoto[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const fetchHistory = useCallback(async () => {
     setHistoryLoading(true)
@@ -170,13 +174,15 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
   const handleAnalyze = useCallback(async () => {
     if (imagePaths.length === 0) return
     setAnalyzing(true)
+    setError('')
     try {
       const data = await apiClient.post<{ results: PhotoAnalysis[] }>('/stock-photos/analyze', {
         image_paths: imagePaths
       })
       setAnalyses(data.results)
     } catch (err) {
-      console.error('Analysis failed:', err)
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(`Analysis failed: ${msg}`)
     } finally {
       setAnalyzing(false)
     }
@@ -186,6 +192,7 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
     if (imagePaths.length === 0) return
     setProcessing(true)
     setJobStatus(null)
+    setError('')
     try {
       const body: Record<string, unknown> = { image_paths: imagePaths }
       if (outputDir) body.output_dir = outputDir
@@ -193,7 +200,8 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
       setJobId(data.job_id)
       pollJob(data.job_id)
     } catch (err) {
-      console.error('Enhancement failed:', err)
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(`Enhancement failed: ${msg}`)
       setProcessing(false)
     }
   }, [imagePaths, outputDir])
@@ -209,8 +217,20 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
             setProcessing(false)
             return
           }
+          if (status.status === 'unknown' || status.error === 'Job not found' ||
+              (status.error && !status.status)) {
+            setJobStatus({ ...status, status: 'failed', message: 'Job not found. It may have been lost due to a server restart.' } as JobStatus)
+            setProcessing(false)
+            return
+          }
+          if (status.status === 'cancelled') {
+            setJobStatus({ ...status, status: 'failed', message: 'Job was cancelled.' } as JobStatus)
+            setProcessing(false)
+            return
+          }
           setTimeout(poll, 2000)
         } catch {
+          setError('Failed to check job status')
           setProcessing(false)
         }
       }
@@ -221,7 +241,7 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
 
   const handleDownload = useCallback(async () => {
     if (!jobId) return
-    window.open(`http://127.0.0.1:8420/api/v1/stock-photos/export/${jobId}`, '_blank')
+    window.open(`${BASE_URL}/stock-photos/export/${jobId}`, '_blank')
   }, [jobId])
 
   const results = jobStatus?.result
@@ -267,6 +287,20 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
         <p className="mt-1 text-xs text-gray-500">JPG, PNG, HEIC accepted</p>
       </div>
 
+      {/* Error Banner */}
+      {error && (
+        <div className="flex items-start gap-2 rounded-lg bg-red-900/20 px-3 py-2 text-sm text-red-400">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span className="flex-1">{error}</span>
+          <button
+            onClick={() => setError('')}
+            className="shrink-0 rounded p-0.5 hover:bg-red-900/30"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Photo Grid */}
       {imagePaths.length > 0 && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
@@ -284,7 +318,7 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
               >
                 <div className="aspect-square overflow-hidden bg-gray-800/50">
                   <img
-                    src={`http://127.0.0.1:8420/api/v1/files/local?path=${encodeURIComponent(path)}`}
+                    src={`${BASE_URL}/files/local?path=${encodeURIComponent(path)}`}
                     alt={path.split('/').pop() || 'Photo'}
                     className="h-full w-full object-cover"
                     onError={(e) => {
@@ -313,7 +347,7 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
                     )}
                     {score != null && (
                       <span
-                        className={`rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${qualityColor(score * 10)}`}
+                        className={`rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${qualityColor(score)}`}
                       >
                         {typeof score === 'number' ? score.toFixed(1) : score}
                       </span>
@@ -626,7 +660,7 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
               >
                 <div className="aspect-square overflow-hidden bg-gray-800/50">
                   <img
-                    src={`http://127.0.0.1:8420/api/v1/files/local?path=${encodeURIComponent(photo.path)}`}
+                    src={`${BASE_URL}/files/local?path=${encodeURIComponent(photo.path)}`}
                     alt={photo.name}
                     className="h-full w-full object-cover"
                     onError={(e) => {

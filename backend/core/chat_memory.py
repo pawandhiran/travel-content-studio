@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
+import re
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -12,6 +15,8 @@ from ulid import ULID
 from core.logging_config import get_logger
 
 log = get_logger(__name__)
+
+_SAFE_PROJECT_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 class ChatMemory:
@@ -23,6 +28,8 @@ class ChatMemory:
 
     def _conversation_path(self, project_id: str | None) -> Path:
         key = project_id or "__global__"
+        if key != "__global__" and not _SAFE_PROJECT_ID_RE.match(key):
+            raise ValueError(f"Invalid project_id: {key!r}")
         return self.history_dir / f"{key}.json"
 
     def _load_conversation(self, project_id: str | None) -> dict[str, Any]:
@@ -45,7 +52,14 @@ class ChatMemory:
     ) -> None:
         data["updated_at"] = datetime.now(timezone.utc).isoformat()
         path = self._conversation_path(project_id)
-        path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        tmp_fd, tmp_path = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+        try:
+            with os.fdopen(tmp_fd, "w") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False, default=str)
+            os.replace(tmp_path, str(path))
+        except BaseException:
+            os.unlink(tmp_path)
+            raise
 
     def add_message(
         self,

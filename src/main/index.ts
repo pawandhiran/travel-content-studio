@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, dialog, shell } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { setupIpcHandlers } from './ipc-handlers'
@@ -60,7 +60,16 @@ app.whenReady().then(async () => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  await backendManager.start()
+  try {
+    await backendManager.start()
+  } catch (err) {
+    await backendManager.stop()
+    const msg = err instanceof Error ? err.message : String(err)
+    dialog.showErrorBox('Backend Startup Failed', `Could not start backend:\n\n${msg}`)
+    app.quit()
+    return
+  }
+
   await ollamaManager.start()
 
   setupIpcHandlers(backendManager, ollamaManager)
@@ -71,6 +80,10 @@ app.whenReady().then(async () => {
       createWindow()
     }
   })
+}).catch((err) => {
+  const msg = err instanceof Error ? err.message : String(err)
+  dialog.showErrorBox('Startup Error', `Travel Content Studio failed to start:\n\n${msg}`)
+  app.quit()
 })
 
 app.on('before-quit', async (e) => {

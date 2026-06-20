@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -28,20 +30,42 @@ class UserRulesManager:
         if not self.skills_path.exists():
             self._save_skills(self._default_skills())
 
+    def _backup_and_reset(self, path: Path) -> None:
+        """Rename corrupt file to .bak before returning defaults."""
+        bak = path.with_suffix(path.suffix + ".bak")
+        try:
+            path.rename(bak)
+            log.warning("corrupt_file_backed_up", original=str(path), backup=str(bak))
+        except OSError:
+            log.warning("corrupt_file_delete_failed", path=str(path))
+
     # ------------------------------------------------------------------
     # Rules -- persistent instructions injected into every prompt
     # ------------------------------------------------------------------
 
     def _load_rules(self) -> list[dict[str, Any]]:
         try:
-            return json.loads(self.rules_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
+            data = json.loads(self.rules_path.read_text(encoding="utf-8"))
+            if not isinstance(data, list):
+                raise ValueError("Expected a list")
+            return data
+        except (json.JSONDecodeError, ValueError):
+            self._backup_and_reset(self.rules_path)
+            return []
+        except OSError:
             return []
 
     def _save_rules(self, rules: list[dict[str, Any]]) -> None:
-        self.rules_path.write_text(
-            json.dumps(rules, indent=2, ensure_ascii=False), encoding="utf-8"
+        tmp_fd, tmp_path = tempfile.mkstemp(
+            dir=str(self.rules_path.parent), suffix=".tmp"
         )
+        try:
+            with os.fdopen(tmp_fd, "w") as f:
+                json.dump(rules, f, indent=2, ensure_ascii=False, default=str)
+            os.replace(tmp_path, str(self.rules_path))
+        except BaseException:
+            os.unlink(tmp_path)
+            raise
 
     def add_rule(self, rule: str, category: str = "general") -> str:
         rules = self._load_rules()
@@ -85,14 +109,27 @@ class UserRulesManager:
 
     def _load_skills(self) -> list[dict[str, Any]]:
         try:
-            return json.loads(self.skills_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
+            data = json.loads(self.skills_path.read_text(encoding="utf-8"))
+            if not isinstance(data, list):
+                raise ValueError("Expected a list")
+            return data
+        except (json.JSONDecodeError, ValueError):
+            self._backup_and_reset(self.skills_path)
+            return self._default_skills()
+        except OSError:
             return self._default_skills()
 
     def _save_skills(self, skills: list[dict[str, Any]]) -> None:
-        self.skills_path.write_text(
-            json.dumps(skills, indent=2, ensure_ascii=False), encoding="utf-8"
+        tmp_fd, tmp_path = tempfile.mkstemp(
+            dir=str(self.skills_path.parent), suffix=".tmp"
         )
+        try:
+            with os.fdopen(tmp_fd, "w") as f:
+                json.dump(skills, f, indent=2, ensure_ascii=False, default=str)
+            os.replace(tmp_path, str(self.skills_path))
+        except BaseException:
+            os.unlink(tmp_path)
+            raise
 
     def add_skill(
         self, name: str, description: str, steps: list[dict[str, Any]]

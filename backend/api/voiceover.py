@@ -97,4 +97,10 @@ async def get_voiceover_audio(voiceover_id: str, db: AsyncSession = Depends(get_
         raise NotFoundError("Voiceover audio file not found on disk")
 
     media_type = "audio/wav" if voiceover.format.value == "wav" else "audio/mpeg"
-    return FileResponse(str(audio_path), media_type=media_type)
+    filename = audio_path.name
+    return FileResponse(
+        str(audio_path),
+        media_type=media_type,
+        filename=filename,
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )

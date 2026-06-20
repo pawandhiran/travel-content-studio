@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { apiClient } from '../../services/apiClient'
+import { apiClient, BASE_URL } from '../../services/apiClient'
 import { BookOpen, Sparkles, Download, AlertCircle } from 'lucide-react'
 
 const blogTypes = [
@@ -53,6 +53,14 @@ export function BlogPanel({ projectId }: { projectId: string }) {
           setError(status.error || 'Generation failed')
           return false
         }
+        if (status.status === 'unknown' || status.error === 'Job not found') {
+          setError('Job not found. It may have been lost due to a server restart.')
+          return false
+        }
+        if (status.status === 'cancelled') {
+          setError('Job was cancelled.')
+          return false
+        }
       } catch {
         // Job may not be registered yet, keep polling
       }
@@ -94,7 +102,7 @@ export function BlogPanel({ projectId }: { projectId: string }) {
   const handleExport = async (blogId: string, format: string) => {
     try {
       window.open(
-        `http://127.0.0.1:8420/api/v1/blogs/${blogId}/export?format=${format}`,
+        `${BASE_URL}/blogs/${blogId}/export?format=${format}`,
         '_blank'
       )
     } catch (err: unknown) {

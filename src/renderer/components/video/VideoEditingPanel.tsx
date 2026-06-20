@@ -43,7 +43,7 @@ const editingTools = [
 
 export function VideoEditingPanel({ projectId }: { projectId: string }) {
   const [videos, setVideos] = useState<{ id: string; filename: string }[]>([])
-  const [selectedVideo, setSelectedVideo] = useState<string>('')
+  const [selectedVideo, setSelectedVideo] = useState<string | null>('')
   const [selectedTool, setSelectedTool] = useState<string | null>(null)
   const [presets, setPresets] = useState<Presets | null>(null)
   const [processing, setProcessing] = useState(false)
@@ -64,6 +64,8 @@ export function VideoEditingPanel({ projectId }: { projectId: string }) {
   const [effect, setEffect] = useState('zoom_pulse')
 
   useEffect(() => {
+    setSelectedVideo(null)
+    setVideos([])
     fetchVideos()
     fetchPresets()
   }, [projectId])
@@ -74,7 +76,7 @@ export function VideoEditingPanel({ projectId }: { projectId: string }) {
         `/projects/${projectId}/videos`
       )
       setVideos(data.videos || [])
-      if (data.videos?.length > 0 && !selectedVideo) {
+      if (data.videos?.length > 0) {
         setSelectedVideo(data.videos[0].id)
       }
     } catch (err: unknown) {
@@ -101,8 +103,16 @@ export function VideoEditingPanel({ projectId }: { projectId: string }) {
         if (status.message) setProgressMsg(status.message)
         if (status.status === 'completed') return status.result || {}
         if (status.status === 'failed') throw new Error(status.error || 'Processing failed')
+        if (status.status === 'unknown' || status.error === 'Job not found') {
+          throw new Error('Job not found. It may have been lost due to a server restart.')
+        }
+        if (status.status === 'cancelled') {
+          throw new Error('Job was cancelled.')
+        }
       } catch (e) {
-        if ((e as Error).message?.includes('failed')) throw e
+        if ((e as Error).message?.includes('failed') ||
+            (e as Error).message?.includes('not found') ||
+            (e as Error).message?.includes('cancelled')) throw e
       }
     }
     throw new Error('Processing timed out')
