@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiClient } from '../../services/apiClient'
+import { useJobPoll } from '../../hooks/useJobPoll'
 import { Film, Sparkles, AlertCircle, Copy, Check } from 'lucide-react'
 
 const durationTypes = [
@@ -27,6 +28,7 @@ export function ReelPanel({ projectId }: { projectId: string }) {
   const [error, setError] = useState('')
   const [progressMsg, setProgressMsg] = useState('')
   const [copied, setCopied] = useState<string | null>(null)
+  const [jobId, setJobId] = useState<string | null>(null)
 
   const handleCopy = (key: string, text: string) => {
     navigator.clipboard.writeText(text)
@@ -47,33 +49,22 @@ export function ReelPanel({ projectId }: { projectId: string }) {
     }
   }
 
-  const pollJob = async (jobId: string): Promise<boolean> => {
-    const maxAttempts = 120
-    for (let i = 0; i < maxAttempts; i++) {
-      await new Promise((r) => setTimeout(r, 2000))
-      try {
-        const status = await apiClient.get<{ status: string; error?: string; message?: string }>(`/reels/jobs/${jobId}`)
-        if (status.message) setProgressMsg(status.message)
-        if (status.status === 'completed') return true
-        if (status.status === 'failed') {
-          setError(status.error || 'Generation failed')
-          return false
-        }
-        if (status.status === 'unknown' || status.error === 'Job not found') {
-          setError('Job not found. It may have been lost due to a server restart.')
-          return false
-        }
-        if (status.status === 'cancelled') {
-          setError('Job was cancelled.')
-          return false
-        }
-      } catch {
-        // Job may not be registered yet, keep polling
-      }
+  const poll = useJobPoll({
+    jobId,
+    endpoint: '/reels/jobs',
+    onComplete: () => {
+      setJobId(null)
+      setGenerating(false)
+      setProgressMsg('')
+      fetchReels()
+    },
+    onError: (errMsg) => {
+      setJobId(null)
+      setGenerating(false)
+      setProgressMsg('')
+      setError(errMsg)
     }
-    setError('Generation timed out')
-    return false
-  }
+  })
 
   const handleGenerate = async () => {
     setGenerating(true)
@@ -87,38 +78,35 @@ export function ReelPanel({ projectId }: { projectId: string }) {
 
       if (!resp.id) {
         setError('No job ID returned')
+        setGenerating(false)
+        setProgressMsg('')
         return
       }
 
       setProgressMsg('Generating with AI... this may take a minute')
-      const success = await pollJob(resp.id)
-      if (success) {
-        setProgressMsg('')
-        await fetchReels()
-      }
+      setJobId(resp.id)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       setError(`Generation failed: ${msg}`)
-    } finally {
       setGenerating(false)
       setProgressMsg('')
     }
   }
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-bold text-white">Reel Generator</h2>
+    <div className="space-y-6 animate-fade-in">
+      <h2 className="text-xl font-bold tracking-tight text-white">Reel Generator</h2>
 
-      <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
+      <div className="rounded-xl border border-gray-800/80 bg-gray-900/60 p-6 backdrop-blur-sm">
         <div className="mb-4 flex gap-2">
           {durationTypes.map((dt) => (
             <button
               key={dt.value}
               onClick={() => setDurationType(dt.value)}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 ${
                 durationType === dt.value
-                  ? 'bg-brand-600/20 text-brand-400'
-                  : 'bg-gray-800 text-gray-400 hover:text-gray-300'
+                  ? 'bg-brand-600/20 text-brand-400 ring-1 ring-brand-500/30'
+                  : 'bg-gray-800 text-gray-400 hover:text-gray-300 hover:bg-gray-700'
               }`}
             >
               {dt.label}
@@ -131,14 +119,14 @@ export function ReelPanel({ projectId }: { projectId: string }) {
           onChange={(e) => setContext(e.target.value)}
           placeholder="Describe the reel theme, location, mood..."
           rows={3}
-          className="mb-4 w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white placeholder-gray-500 focus:border-brand-500 focus:outline-none"
+          className="mb-4 w-full rounded-lg border border-gray-700/80 bg-gray-800/80 px-4 py-3 text-sm text-white placeholder-gray-500 transition-all duration-200 focus:border-brand-500/50 focus:ring-2 focus:ring-brand-500/10 focus:outline-none"
         />
 
         <div className="flex items-center gap-4">
           <button
             onClick={handleGenerate}
             disabled={generating}
-            className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+            className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-brand-600 to-brand-500 px-5 py-2.5 text-sm font-medium text-white transition-all duration-300 hover:shadow-lg hover:shadow-brand-600/25 hover:-translate-y-0.5 disabled:opacity-50"
           >
             {generating ? (
               <>
@@ -152,30 +140,31 @@ export function ReelPanel({ projectId }: { projectId: string }) {
               </>
             )}
           </button>
-          {progressMsg && (
-            <span className="text-xs text-gray-400">{progressMsg}</span>
+          {(poll.status || progressMsg) && (
+            <span className="text-xs text-gray-400 animate-pulse-subtle">{poll.status || progressMsg}</span>
           )}
         </div>
 
         {error && (
-          <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-900/20 px-3 py-2 text-sm text-red-400">
+          <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-800/30 bg-red-900/15 px-4 py-3 text-sm text-red-400 animate-fade-in-up">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{error}</span>
+            <span className="min-w-0">{error}</span>
           </div>
         )}
       </div>
 
       {reels.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-700 py-16">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-700/80 py-16 transition-colors hover:border-gray-600">
           <Film className="mb-4 h-12 w-12 text-gray-600" />
           <p className="text-gray-400">No reel plans generated yet</p>
         </div>
       ) : (
         <div className="space-y-4">
-          {reels.map((reel) => (
+          {reels.map((reel, idx) => (
             <div
               key={reel.id}
-              className="rounded-xl border border-gray-800 bg-gray-900/50 p-5"
+              className="group rounded-xl border border-gray-800/80 bg-gray-900/60 p-5 transition-all duration-300 hover:border-gray-700/80 hover:shadow-md hover:shadow-black/10 animate-fade-in-up"
+              style={{ animationDelay: `${idx * 50}ms`, animationFillMode: 'backwards' }}
             >
               <div className="mb-3 flex items-center gap-2">
                 <span className="rounded bg-brand-600/20 px-2 py-0.5 text-xs font-medium text-brand-400">

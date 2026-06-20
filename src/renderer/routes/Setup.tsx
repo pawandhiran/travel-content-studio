@@ -10,21 +10,6 @@ import {
   Sparkles
 } from 'lucide-react'
 
-declare global {
-  interface Window {
-    api: {
-      checkDependencies: () => Promise<DependencyStatus>
-      installOllama: () => Promise<{ success: boolean; message: string }>
-      installFfmpeg: () => Promise<{ success: boolean; message: string }>
-      downloadModel: (model: string) => Promise<{ success: boolean; message: string }>
-      markSetupComplete: () => Promise<void>
-      openExternal: (url: string) => Promise<void>
-      onInstallProgress: (cb: (data: { component: string; percent: number; model?: string }) => void) => void
-      [key: string]: unknown
-    }
-  }
-}
-
 interface DependencyStatus {
   ollama: { installed: boolean; running: boolean; path: string | null }
   ffmpeg: { installed: boolean; path: string | null }

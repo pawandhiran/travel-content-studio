@@ -124,10 +124,10 @@ export function Dashboard() {
   const activeJobs = jobs.filter((j) => j.status === 'running' || j.status === 'pending')
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8">
+    <div className="mx-auto max-w-6xl space-y-8 animate-fade-in">
       {/* Update banner */}
       {updateInfo?.update_available && (
-        <div className="flex items-center justify-between rounded-xl border border-brand-600/50 bg-brand-600/10 px-5 py-3">
+        <div className="flex items-center justify-between rounded-xl border border-brand-600/50 bg-brand-600/10 px-5 py-3 backdrop-blur-sm animate-fade-in-up">
           <div className="flex items-center gap-3">
             <RefreshCw className="h-5 w-5 text-brand-400" />
             <div>
@@ -144,7 +144,7 @@ export function Dashboard() {
             <button
               onClick={handleUpdate}
               disabled={updating}
-              className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+              className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-brand-700 hover:shadow-lg hover:shadow-brand-600/20 disabled:opacity-50"
             >
               {updating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -159,12 +159,12 @@ export function Dashboard() {
 
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-white">Welcome to Travel Content Studio</h2>
-          <p className="mt-1 text-gray-400">Transform your travel media into polished content</p>
+          <h2 className="text-3xl font-bold tracking-tight text-white">Welcome to Travel Content Studio</h2>
+          <p className="mt-1.5 text-gray-400">Transform your travel media into polished content</p>
         </div>
         <button
           onClick={() => navigate('/projects')}
-          className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-700"
+          className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-brand-600 to-brand-500 px-5 py-2.5 text-sm font-medium text-white transition-all duration-300 hover:shadow-lg hover:shadow-brand-600/25 hover:-translate-y-0.5"
         >
           <Plus className="h-4 w-4" />
           New Project
@@ -221,31 +221,32 @@ export function Dashboard() {
           <h3 className="text-lg font-semibold text-white">Recent Projects</h3>
           <button
             onClick={() => navigate('/projects')}
-            className="text-sm text-brand-400 hover:text-brand-300"
+            className="text-sm text-brand-400 transition-colors duration-200 hover:text-brand-300"
           >
             View all
           </button>
         </div>
         {recentProjects.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-700 py-16">
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-700 py-16 transition-colors hover:border-gray-600">
             <FolderOpen className="mb-4 h-12 w-12 text-gray-600" />
             <p className="text-gray-400">No projects yet</p>
             <button
               onClick={() => navigate('/projects')}
-              className="mt-4 rounded-lg bg-gray-800 px-4 py-2 text-sm text-gray-300 hover:bg-gray-700"
+              className="mt-4 rounded-lg bg-gray-800 px-4 py-2 text-sm text-gray-300 transition-all duration-200 hover:bg-gray-700 hover:-translate-y-0.5"
             >
               Create your first project
             </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {recentProjects.map((project) => (
+            {recentProjects.map((project, idx) => (
               <button
                 key={project.id}
                 onClick={() => navigate(`/projects/${project.id}`)}
-                className="rounded-xl border border-gray-800 bg-gray-900/50 p-5 text-left transition-colors hover:border-gray-700 hover:bg-gray-900"
+                className="group rounded-xl border border-gray-800/80 bg-gray-900/60 p-5 text-left transition-all duration-300 hover:border-gray-700/80 hover:bg-gray-900 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20 animate-fade-in-up"
+                style={{ animationDelay: `${idx * 75}ms`, animationFillMode: 'backwards' }}
               >
-                <h4 className="font-medium text-white">{project.name}</h4>
+                <h4 className="font-medium text-white group-hover:text-brand-300 transition-colors duration-200">{project.name}</h4>
                 <p className="mt-1 line-clamp-2 text-sm text-gray-400">{project.description}</p>
                 <p className="mt-3 text-xs text-gray-500">
                   {new Date(project.created_at).toLocaleDateString()}
@@ -264,20 +265,20 @@ export function Dashboard() {
             {activeJobs.map((job) => (
               <div
                 key={job.id}
-                className="flex items-center justify-between rounded-lg border border-gray-800 bg-gray-900/50 px-4 py-3"
+                className="flex items-center justify-between rounded-lg border border-gray-800/80 bg-gray-900/60 px-4 py-3 transition-all duration-200 hover:border-gray-700/80"
               >
-                <div>
-                  <p className="text-sm font-medium text-white">{job.job_type}</p>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-white truncate">{job.job_type}</p>
                   <p className="text-xs text-gray-400">{job.status}</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="h-2 w-32 overflow-hidden rounded-full bg-gray-800">
                     <div
-                      className="h-full rounded-full bg-brand-500 transition-all"
+                      className="h-full rounded-full bg-gradient-to-r from-brand-600 to-brand-400 transition-all duration-300"
                       style={{ width: `${job.progress}%` }}
                     />
                   </div>
-                  <span className="text-xs text-gray-400">{job.progress}%</span>
+                  <span className="text-xs font-medium text-gray-400">{job.progress}%</span>
                 </div>
               </div>
             ))}
@@ -501,14 +502,15 @@ function StatusCard({
   detail: string
 }) {
   return (
-    <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-800">
+    <div className="group relative rounded-xl border border-gray-800/80 bg-gray-900/60 p-4 backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20 hover:border-gray-700/80 animate-fade-in-up">
+      <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-brand-600/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+      <div className="relative flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-800/80 ring-1 ring-gray-700/50 transition-all duration-300 group-hover:ring-brand-500/30">
           <Icon className="h-5 w-5 text-brand-400" />
         </div>
-        <div>
+        <div className="min-w-0">
           <p className="text-xs text-gray-500">{label}</p>
-          <p className="text-sm font-medium text-white">{value}</p>
+          <p className="text-sm font-semibold text-white truncate">{value}</p>
           <p className="text-xs text-gray-500">{detail}</p>
         </div>
       </div>

@@ -81,29 +81,32 @@ export function Sidebar() {
 
   return (
     <>
-      <aside className="flex w-60 flex-col border-r border-gray-800 bg-gray-900/50">
-        <div className="flex h-14 items-center gap-2 border-b border-gray-800 px-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600">
+      <aside className="flex w-60 flex-col border-r border-gray-800/50 backdrop-blur-xl bg-gray-900/80">
+        <div className="flex h-14 items-center gap-2.5 border-b border-gray-800/50 px-4">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 shadow-lg shadow-brand-600/20">
             <Video className="h-4 w-4 text-white" />
           </div>
-          <span className="text-sm font-semibold text-white">Travel Studio</span>
+          <span className="text-sm font-semibold tracking-tight text-white">Travel Studio</span>
         </div>
 
-        <nav className="flex-1 overflow-y-auto p-3">
-          <div className="space-y-1">
+        <nav className="flex-1 overflow-y-auto p-3 scroll-smooth">
+          <div className="space-y-0.5">
             {navItems.map((item) => {
               const isActive = location.pathname === item.path
               return (
                 <button
                   key={item.path}
                   onClick={() => navigate(item.path)}
-                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
+                  className={`relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200 ${
                     isActive
-                      ? 'bg-brand-600/20 text-brand-400'
-                      : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+                      ? 'bg-brand-600/15 text-brand-400'
+                      : 'text-gray-400 hover:bg-gray-800/70 hover:text-gray-200 hover:translate-x-0.5'
                   }`}
                 >
-                  <item.icon className="h-4 w-4" />
+                  {isActive && (
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-full bg-gradient-to-b from-brand-400 to-brand-600" />
+                  )}
+                  <item.icon className={`h-[18px] w-[18px] transition-colors duration-200 ${isActive ? 'text-brand-400' : ''}`} />
                   {item.label}
                 </button>
               )
@@ -112,11 +115,11 @@ export function Sidebar() {
 
           {isProjectOpen && projectId && (
             <>
-              <div className="my-4 border-t border-gray-800" />
-              <p className="mb-2 px-3 text-xs font-medium uppercase tracking-wider text-gray-500">
+              <div className="my-4 border-t border-gray-800/50" />
+              <p className="mb-2 px-3 text-[11px] font-medium uppercase tracking-wider text-gray-500">
                 Workspace
               </p>
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {studioItems.map((item) => {
                   const fullPath = `/projects/${projectId}/${item.path}`
                   const isActive = location.pathname === fullPath
@@ -124,13 +127,16 @@ export function Sidebar() {
                     <button
                       key={item.path}
                       onClick={() => navigate(fullPath)}
-                      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
+                      className={`relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200 ${
                         isActive
-                          ? 'bg-brand-600/20 text-brand-400'
-                          : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+                          ? 'bg-brand-600/15 text-brand-400'
+                          : 'text-gray-400 hover:bg-gray-800/70 hover:text-gray-200 hover:translate-x-0.5'
                       }`}
                     >
-                      <item.icon className="h-4 w-4" />
+                      {isActive && (
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-full bg-gradient-to-b from-brand-400 to-brand-600" />
+                      )}
+                      <item.icon className={`h-[18px] w-[18px] transition-colors duration-200 ${isActive ? 'text-brand-400' : ''}`} />
                       {item.label}
                     </button>
                   )
@@ -140,34 +146,40 @@ export function Sidebar() {
           )}
         </nav>
 
-        <div className="border-t border-gray-800 p-3 space-y-1">
+        <div className="border-t border-gray-800/50 p-3 space-y-0.5">
           <button
             onClick={() => navigate('/logs')}
-            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
+            className={`relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200 ${
               location.pathname === '/logs'
-                ? 'bg-brand-600/20 text-brand-400'
-                : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+                ? 'bg-brand-600/15 text-brand-400'
+                : 'text-gray-400 hover:bg-gray-800/70 hover:text-gray-200 hover:translate-x-0.5'
             }`}
           >
-            <FileText className="h-4 w-4" />
+            {location.pathname === '/logs' && (
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-full bg-gradient-to-b from-brand-400 to-brand-600" />
+            )}
+            <FileText className="h-[18px] w-[18px]" />
             Logs
           </button>
           <button
             onClick={() => navigate('/settings')}
-            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
+            className={`relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200 ${
               location.pathname === '/settings'
-                ? 'bg-brand-600/20 text-brand-400'
-                : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+                ? 'bg-brand-600/15 text-brand-400'
+                : 'text-gray-400 hover:bg-gray-800/70 hover:text-gray-200 hover:translate-x-0.5'
             }`}
           >
-            <Settings className="h-4 w-4" />
+            {location.pathname === '/settings' && (
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-full bg-gradient-to-b from-brand-400 to-brand-600" />
+            )}
+            <Settings className="h-[18px] w-[18px]" />
             Settings
           </button>
           <button
             onClick={() => setShowConfirm(true)}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-red-400 hover:bg-red-900/20 transition-colors"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-red-400 hover:bg-red-900/20 transition-all duration-200 hover:translate-x-0.5"
           >
-            <Power className="h-4 w-4" />
+            <Power className="h-[18px] w-[18px]" />
             Stop App
           </button>
         </div>

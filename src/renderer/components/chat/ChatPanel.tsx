@@ -871,23 +871,23 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
         </div>
 
         {/* Messages area */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-4 scroll-smooth">
           {historyLoading ? (
             <div className="flex h-full items-center justify-center">
               <Loader2 className="h-5 w-5 animate-spin text-gray-500" />
             </div>
           ) : messages.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-4">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-600/20">
-                <Bot className="h-8 w-8 text-brand-400" />
+            <div className="flex h-full flex-col items-center justify-center gap-4 animate-fade-in">
+              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-brand-600/20 animate-pulse-subtle">
+                <Bot className="h-10 w-10 text-brand-400" />
               </div>
-              <h3 className="text-lg font-medium text-white">AI Assistant</h3>
+              <h3 className="text-xl font-semibold text-white">AI Assistant</h3>
               <p className="max-w-md text-center text-sm text-gray-400">
                 I can help you create travel content, edit videos, generate blogs, transcribe
                 audio, and more. Ask me anything or drop files to get started.
               </p>
-              <div className="mt-2 rounded-lg border border-gray-800 bg-gray-800/30 p-3">
-                <p className="mb-2 text-center text-xs font-medium text-gray-500">
+              <div className="mt-2 rounded-xl border border-gray-800/50 bg-gray-800/30 p-4 backdrop-blur-sm">
+                <p className="mb-2.5 text-center text-xs font-medium text-gray-500">
                   Slash commands
                 </p>
                 <div className="flex flex-wrap justify-center gap-2">
@@ -895,7 +895,7 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
                     <button
                       key={c.command}
                       onClick={() => setInput(c.command)}
-                      className="rounded-md bg-gray-800 px-2.5 py-1 font-mono text-[11px] text-gray-400 transition-colors hover:bg-gray-700 hover:text-gray-200"
+                      className="rounded-md bg-gray-800 px-2.5 py-1 font-mono text-[11px] text-gray-400 transition-all duration-200 hover:bg-gray-700 hover:text-gray-200 hover:scale-105"
                     >
                       {c.command.trim()}
                     </button>
@@ -912,7 +912,7 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
                   <button
                     key={s}
                     onClick={() => handleSuggestionClick(s)}
-                    className="rounded-full border border-gray-700 bg-gray-800/50 px-4 py-2 text-sm text-gray-300 transition-colors hover:border-brand-600/50 hover:bg-gray-800 hover:text-white"
+                    className="rounded-full border border-gray-700/80 bg-gray-800/50 px-4 py-2 text-sm text-gray-300 transition-all duration-200 hover:border-brand-600/50 hover:bg-gray-800 hover:text-white hover:scale-105"
                   >
                     {s}
                   </button>
@@ -924,23 +924,23 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
               {messages.map((msg) => (
                 <div
                   key={msg.id}
-                  className={`group/msg flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  className={`group/msg flex gap-3 animate-fade-in-up ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   {msg.role === 'assistant' && (
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-800">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-800/80 ring-1 ring-gray-700/50">
                       <Bot className="h-4 w-4 text-brand-400" />
                     </div>
                   )}
                   <div
-                    className={`max-w-[75%] space-y-2 ${
+                    className={`max-w-[75%] min-w-0 space-y-2 ${
                       msg.role === 'user' ? 'items-end' : 'items-start'
                     }`}
                   >
                     <div
-                      className={`rounded-2xl px-4 py-2.5 text-sm ${
+                      className={`px-4 py-2.5 text-sm shadow-sm ${
                         msg.role === 'user'
-                          ? 'bg-brand-600 text-white'
-                          : 'bg-gray-800 text-gray-200'
+                          ? 'rounded-3xl bg-gradient-to-r from-brand-600 to-brand-500 text-white'
+                          : 'rounded-2xl border-l-2 border-brand-500/30 bg-gray-800/80 text-gray-200'
                       }`}
                     >
                       <p className="whitespace-pre-wrap">{msg.content}</p>
@@ -976,7 +976,7 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
                           <button
                             key={i}
                             onClick={() => handleSuggestionClick(s)}
-                            className="rounded-full border border-gray-700 bg-gray-800/50 px-3 py-1 text-xs text-gray-300 transition-colors hover:border-brand-600/50 hover:text-white"
+                            className="rounded-full border border-gray-700/80 bg-gray-800/50 px-3 py-1 text-xs text-gray-300 transition-all duration-200 hover:border-brand-600/50 hover:text-white hover:scale-105"
                           >
                             {s}
                           </button>
@@ -1056,10 +1056,10 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
         </div>
 
         {/* Input area */}
-        <div className="border-t border-gray-800 p-4">
+        <div className="border-t border-gray-800/50 p-4">
           <div className="mx-auto max-w-3xl">
             {(attachments.length > 0 || directories.length > 0) && (
-              <div className="mb-2 flex flex-wrap gap-2">
+              <div className="mb-2 flex flex-wrap gap-2 animate-fade-in">
                 {attachments.map((a, i) => (
                   <AttachmentPreview
                     key={`file-${i}`}
@@ -1081,17 +1081,17 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
             <div className="relative">
               {showPalette && <CommandPalette filter={input} onSelect={handleCommandSelect} />}
 
-              <div className="flex items-end gap-2 rounded-xl border border-gray-700 bg-gray-800/50 p-2 focus-within:border-brand-600/50">
+              <div className="flex items-end gap-2 rounded-xl border border-gray-700/80 bg-gray-800/50 p-2 transition-all duration-200 focus-within:border-brand-500/40 focus-within:ring-2 focus-within:ring-brand-500/10 focus-within:shadow-lg focus-within:shadow-brand-500/5">
                 <button
                   onClick={handleFileSelect}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-700 hover:text-gray-200"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition-all duration-200 hover:bg-gray-700 hover:text-gray-200"
                   title="Attach files (photos, videos, zip, any file)"
                 >
                   <Paperclip className="h-4 w-4" />
                 </button>
                 <button
                   onClick={handleFolderSelect}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-700 hover:text-gray-200"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition-all duration-200 hover:bg-gray-700 hover:text-gray-200"
                   title="Attach a folder (all files inside will be included)"
                 >
                   <FolderOpen className="h-4 w-4" />
@@ -1108,13 +1108,13 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
                   onKeyDown={handleKeyDown}
                   placeholder="Ask anything... or type / for commands"
                   rows={1}
-                  className="max-h-32 flex-1 resize-none bg-transparent text-sm text-white placeholder-gray-500 focus:outline-none"
+                  className="max-h-32 min-w-0 flex-1 resize-none bg-transparent text-sm text-white placeholder-gray-500 focus:outline-none"
                   style={{ minHeight: '36px' }}
                 />
                 <button
                   onClick={handleSend}
                   disabled={sending || (!input.trim() && attachments.length === 0 && directories.length === 0)}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-600 text-white transition-colors hover:bg-brand-500 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-r from-brand-600 to-brand-500 text-white transition-all duration-200 hover:shadow-md hover:shadow-brand-500/25 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {sending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />

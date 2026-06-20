@@ -22,8 +22,8 @@ export function TopBar() {
   const title = routeTitles[location.pathname] || 'Project Workspace'
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-gray-800 bg-gray-900/30 px-6">
-      <h1 className="text-lg font-semibold text-white">{title}</h1>
+    <header className="flex h-14 items-center justify-between border-b border-gray-800/50 bg-gray-900/30 backdrop-blur-sm px-6">
+      <h1 className="text-lg font-semibold tracking-tight text-white">{title}</h1>
 
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2 text-xs">

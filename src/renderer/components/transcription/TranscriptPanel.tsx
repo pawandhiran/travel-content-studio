@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { apiClient, BASE_URL } from '../../services/apiClient'
+import { useJobPoll } from '../../hooks/useJobPoll'
 import { FileText, Download, Play, Mic, AlertCircle } from 'lucide-react'
 
 interface Video {
@@ -20,14 +21,6 @@ interface TranscriptData {
   segments: Segment[]
 }
 
-interface JobStatus {
-  status: string
-  progress?: number
-  message?: string
-  error?: string
-  result?: Record<string, unknown>
-}
-
 export function TranscriptPanel({ projectId }: { projectId: string }) {
   const [videos, setVideos] = useState<Video[]>([])
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null)
@@ -37,6 +30,7 @@ export function TranscriptPanel({ projectId }: { projectId: string }) {
   const [error, setError] = useState('')
   const [loadingVideos, setLoadingVideos] = useState(true)
   const [loadingTranscript, setLoadingTranscript] = useState(false)
+  const [jobId, setJobId] = useState<string | null>(null)
 
   const fetchVideos = useCallback(async () => {
     try {
@@ -94,39 +88,22 @@ export function TranscriptPanel({ projectId }: { projectId: string }) {
     }
   }, [selectedVideoId, loadTranscript])
 
-  const pollJob = async (jobId: string): Promise<boolean> => {
-    const maxAttempts = 120
-    for (let i = 0; i < maxAttempts; i++) {
-      await new Promise((r) => setTimeout(r, 2000))
-      try {
-        const status = await apiClient.get<JobStatus>(
-          `/transcription/jobs/${jobId}`
-        )
-        if (status.message) {
-          setProgressMsg(status.message)
-        }
-        if (status.status === 'completed') {
-          return true
-        }
-        if (status.status === 'failed') {
-          setError(status.error || 'Transcription failed')
-          return false
-        }
-        if (status.status === 'unknown' || status.error === 'Job not found') {
-          setError('Job not found. It may have been lost due to a server restart.')
-          return false
-        }
-        if (status.status === 'cancelled') {
-          setError('Job was cancelled.')
-          return false
-        }
-      } catch {
-        // Job may not be registered yet on first poll
-      }
+  const poll = useJobPoll({
+    jobId,
+    endpoint: '/transcription/jobs',
+    onComplete: () => {
+      setJobId(null)
+      setTranscribing(false)
+      setProgressMsg('')
+      if (selectedVideoId) loadTranscript(selectedVideoId)
+    },
+    onError: (errMsg) => {
+      setJobId(null)
+      setTranscribing(false)
+      setProgressMsg('')
+      setError(errMsg)
     }
-    setError('Transcription timed out')
-    return false
-  }
+  })
 
   const handleTranscribe = async () => {
     if (!selectedVideoId) return
@@ -139,19 +116,16 @@ export function TranscriptPanel({ projectId }: { projectId: string }) {
       )
       if (!resp.id) {
         setError('No job ID returned')
+        setTranscribing(false)
+        setProgressMsg('')
         return
       }
 
       setProgressMsg('Transcribing with Faster Whisper... this may take a minute')
-      const success = await pollJob(resp.id)
-      if (success) {
-        setProgressMsg('')
-        await loadTranscript(selectedVideoId)
-      }
+      setJobId(resp.id)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       setError(`Transcription failed: ${msg}`)
-    } finally {
       setTranscribing(false)
       setProgressMsg('')
     }
@@ -250,8 +224,8 @@ export function TranscriptPanel({ projectId }: { projectId: string }) {
                   </>
                 )}
               </button>
-              {progressMsg && (
-                <span className="text-xs text-gray-400">{progressMsg}</span>
+              {(poll.status || progressMsg) && (
+                <span className="text-xs text-gray-400">{poll.status || progressMsg}</span>
               )}
             </div>
           </>

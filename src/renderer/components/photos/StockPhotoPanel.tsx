@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import {
   Upload,
   Camera,
@@ -19,6 +19,7 @@ import {
   X
 } from 'lucide-react'
 import { apiClient, BASE_URL } from '../../services/apiClient'
+import { useJobPoll } from '../../hooks/useJobPoll'
 
 interface HistoryPhoto {
   path: string
@@ -61,15 +62,6 @@ interface StudioJobResult {
   output_dir: string
 }
 
-interface JobStatus {
-  id: string
-  status: string
-  progress: number
-  message: string
-  error?: string
-  result?: StudioJobResult
-}
-
 const SCENE_LABELS: Record<string, string> = {
   landscape: 'Landscape',
   portrait: 'Portrait',
@@ -91,8 +83,9 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
   const [imagePaths, setImagePaths] = useState<string[]>([])
   const [analyses, setAnalyses] = useState<PhotoAnalysis[]>([])
   const [jobId, setJobId] = useState<string | null>(null)
-  const [jobStatus, setJobStatus] = useState<JobStatus | null>(null)
   const [processing, setProcessing] = useState(false)
+  const [results, setResults] = useState<StudioJobResult | null>(null)
+  const lastJobIdRef = useRef<string | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [expandedPhoto, setExpandedPhoto] = useState<number | null>(null)
   const [outputDir, setOutputDir] = useState<string>('')
@@ -119,16 +112,25 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
     fetchHistory()
   }, [fetchHistory])
 
-  // Refresh history after a job completes
-  useEffect(() => {
-    if (jobStatus?.status === 'completed') {
+  const poll = useJobPoll({
+    jobId,
+    endpoint: '/stock-photos/jobs',
+    onComplete: (result) => {
+      lastJobIdRef.current = jobId
+      setJobId(null)
+      setProcessing(false)
+      setResults(result)
       fetchHistory()
+    },
+    onError: (errMsg) => {
+      setJobId(null)
+      setProcessing(false)
+      setError(errMsg)
     }
-  }, [jobStatus?.status, fetchHistory])
+  })
 
   const handleSelectOutputDir = useCallback(async () => {
     try {
-      // @ts-expect-error -- window.api provided by preload
       const dir = await window.api.selectDirectory()
       if (dir) setOutputDir(dir)
     } catch {
@@ -138,7 +140,6 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
 
   const handleSelectFiles = useCallback(async () => {
     try {
-      // @ts-expect-error -- window.api provided by preload
       const result = await window.api.selectFiles({
         filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'heic'] }],
         multiSelections: true
@@ -191,14 +192,14 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
   const handleEnhance = useCallback(async () => {
     if (imagePaths.length === 0) return
     setProcessing(true)
-    setJobStatus(null)
+    setResults(null)
     setError('')
     try {
       const body: Record<string, unknown> = { image_paths: imagePaths }
       if (outputDir) body.output_dir = outputDir
       const data = await apiClient.post<{ job_id: string }>('/stock-photos/enhance', body)
+      lastJobIdRef.current = data.job_id
       setJobId(data.job_id)
-      pollJob(data.job_id)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       setError(`Enhancement failed: ${msg}`)
@@ -206,70 +207,34 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
     }
   }, [imagePaths, outputDir])
 
-  const pollJob = useCallback(
-    async (id: string) => {
-      const poll = async () => {
-        try {
-          const status = await apiClient.get<JobStatus>(`/stock-photos/jobs/${id}`)
-          setJobStatus(status)
-
-          if (status.status === 'completed' || status.status === 'failed') {
-            setProcessing(false)
-            return
-          }
-          if (status.status === 'unknown' || status.error === 'Job not found' ||
-              (status.error && !status.status)) {
-            setJobStatus({ ...status, status: 'failed', message: 'Job not found. It may have been lost due to a server restart.' } as JobStatus)
-            setProcessing(false)
-            return
-          }
-          if (status.status === 'cancelled') {
-            setJobStatus({ ...status, status: 'failed', message: 'Job was cancelled.' } as JobStatus)
-            setProcessing(false)
-            return
-          }
-          setTimeout(poll, 2000)
-        } catch {
-          setError('Failed to check job status')
-          setProcessing(false)
-        }
-      }
-      poll()
-    },
-    []
-  )
-
-  const handleDownload = useCallback(async () => {
-    if (!jobId) return
-    window.open(`${BASE_URL}/stock-photos/export/${jobId}`, '_blank')
-  }, [jobId])
-
-  const results = jobStatus?.result
+  const handleDownload = useCallback(() => {
+    const id = lastJobIdRef.current
+    if (!id) return
+    window.open(`${BASE_URL}/stock-photos/export/${id}`, '_blank')
+  }, [])
 
   const handleOpenFolder = useCallback(async () => {
     const target = results?.package_path || results?.output_dir
     if (!target) return
     const folderPath = results?.output_dir || target.replace(/\/[^/]+$/, '')
     try {
-      // @ts-expect-error -- window.api provided by preload
       await window.api.openInExplorer(folderPath)
     } catch {
-      // @ts-expect-error -- window.api provided by preload
       await window.api.openExternal(`file://${folderPath}`)
     }
   }, [results])
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-6">
+    <div className="mx-auto max-w-6xl space-y-6 p-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-white">Stock Photo Studio</h2>
+          <h2 className="text-2xl font-bold tracking-tight text-white">Stock Photo Studio</h2>
           <p className="mt-1 text-sm text-gray-400">
             Enhance, QC, and generate Shutterstock metadata for your travel photos
           </p>
         </div>
         {imagePaths.length > 0 && (
-          <span className="rounded-full bg-brand-600/20 px-3 py-1 text-sm text-brand-400">
+          <span className="rounded-full bg-brand-600/20 px-3 py-1 text-sm font-medium text-brand-400">
             {imagePaths.length} photo{imagePaths.length !== 1 ? 's' : ''}
           </span>
         )}
@@ -280,21 +245,21 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
         onDrop={handleDrop}
         onDragOver={(e) => e.preventDefault()}
         onClick={handleSelectFiles}
-        className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-700 bg-gray-900/50 p-12 transition-colors hover:border-brand-600/50 hover:bg-gray-900"
+        className="group flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-700/80 bg-gray-900/50 p-12 transition-all duration-300 hover:border-brand-500/60 hover:bg-gray-900/80 hover:shadow-lg hover:shadow-brand-500/5"
       >
-        <Upload className="mb-3 h-10 w-10 text-gray-500" />
+        <Upload className="mb-3 h-10 w-10 text-gray-500 transition-transform duration-300 group-hover:scale-110 group-hover:text-brand-400" />
         <p className="text-sm font-medium text-gray-300">Drop photos here or click to browse</p>
         <p className="mt-1 text-xs text-gray-500">JPG, PNG, HEIC accepted</p>
       </div>
 
       {/* Error Banner */}
       {error && (
-        <div className="flex items-start gap-2 rounded-lg bg-red-900/20 px-3 py-2 text-sm text-red-400">
+        <div className="flex items-start gap-2 rounded-xl border border-red-800/30 bg-red-900/15 px-4 py-3 text-sm text-red-400 animate-fade-in-up">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span className="flex-1">{error}</span>
+          <span className="min-w-0 flex-1">{error}</span>
           <button
             onClick={() => setError('')}
-            className="shrink-0 rounded p-0.5 hover:bg-red-900/30"
+            className="shrink-0 rounded-lg p-1 transition-colors hover:bg-red-900/30"
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -314,13 +279,13 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
             return (
               <div
                 key={`${path}-${idx}`}
-                className="group relative overflow-hidden rounded-xl border border-gray-800 bg-gray-900/50"
+                className="group relative overflow-hidden rounded-xl border border-gray-800/80 bg-gray-900/60 transition-all duration-300 hover:border-gray-700/80 hover:shadow-lg hover:shadow-black/20"
               >
                 <div className="aspect-square overflow-hidden bg-gray-800/50">
                   <img
                     src={`${BASE_URL}/files/local?path=${encodeURIComponent(path)}`}
                     alt={path.split('/').pop() || 'Photo'}
-                    className="h-full w-full object-cover"
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                     onError={(e) => {
                       e.currentTarget.style.display = 'none'
                       e.currentTarget.parentElement!.classList.add(
@@ -422,21 +387,24 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
               </span>
             </button>
             <button
-              onClick={() => {
+              onClick={async () => {
                 setProcessing(true)
-                setJobStatus(null)
-                const body: Record<string, unknown> = {
-                  image_paths: imagePaths,
-                  mode: 'stock_ready'
+                setResults(null)
+                setError('')
+                try {
+                  const body: Record<string, unknown> = {
+                    image_paths: imagePaths,
+                    mode: 'stock_ready'
+                  }
+                  if (outputDir) body.output_dir = outputDir
+                  const data = await apiClient.post<{ job_id: string }>('/stock-photos/enhance', body)
+                  lastJobIdRef.current = data.job_id
+                  setJobId(data.job_id)
+                } catch (err) {
+                  const errMsg = err instanceof Error ? err.message : String(err)
+                  setError(errMsg || 'Stock Ready processing failed')
+                  setProcessing(false)
                 }
-                if (outputDir) body.output_dir = outputDir
-                apiClient
-                  .post<{ job_id: string }>('/stock-photos/enhance', body)
-                  .then((data) => {
-                    setJobId(data.job_id)
-                    pollJob(data.job_id)
-                  })
-                  .catch((err) => { setError(err.message || 'Stock Ready processing failed'); setProcessing(false) })
               }}
               disabled={analyzing || processing}
               className="flex flex-col items-center gap-1.5 rounded-xl border border-emerald-600/50 bg-emerald-600/10 px-4 py-3 text-center transition-colors hover:bg-emerald-600/20 disabled:cursor-not-allowed disabled:opacity-50"
@@ -458,16 +426,16 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
       )}
 
       {/* Progress Bar */}
-      {processing && jobStatus && (
+      {processing && jobId && (
         <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
           <div className="mb-2 flex items-center justify-between text-sm">
-            <span className="text-gray-300">{jobStatus.message || 'Processing...'}</span>
-            <span className="text-brand-400">{jobStatus.progress}%</span>
+            <span className="text-gray-300">{poll.status || 'Processing...'}</span>
+            <span className="text-brand-400">{poll.progress}%</span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-gray-800">
             <div
               className="h-full rounded-full bg-brand-600 transition-all duration-300"
-              style={{ width: `${jobStatus.progress}%` }}
+              style={{ width: `${poll.progress}%` }}
             />
           </div>
         </div>
@@ -656,13 +624,13 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
                 key={photo.path}
                 onDoubleClick={() => window.api.openExternal(`file://${photo.path}`)}
                 title="Double-click to open in viewer"
-                className="group relative cursor-pointer overflow-hidden rounded-xl border border-gray-800 bg-gray-900/50 transition-colors hover:border-gray-600"
+                className="group relative cursor-pointer overflow-hidden rounded-xl border border-gray-800/80 bg-gray-900/60 transition-all duration-300 hover:border-gray-600 hover:shadow-lg hover:shadow-black/20"
               >
                 <div className="aspect-square overflow-hidden bg-gray-800/50">
                   <img
                     src={`${BASE_URL}/files/local?path=${encodeURIComponent(photo.path)}`}
                     alt={photo.name}
-                    className="h-full w-full object-cover"
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                     onError={(e) => {
                       e.currentTarget.style.display = 'none'
                     }}

@@ -38,7 +38,6 @@ export function VideoPanel({ projectId }: { projectId: string }) {
 
   const handleImport = async () => {
     try {
-      // @ts-expect-error -- window.api provided by preload
       const filePaths: string[] = await window.api.selectFiles({
         filters: [{ name: 'Video Files', extensions: ['mp4', 'mov', 'avi', 'mkv'] }],
         multiSelections: true
@@ -78,13 +77,13 @@ export function VideoPanel({ projectId }: { projectId: string }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-white">Videos</h2>
+        <h2 className="text-xl font-bold tracking-tight text-white">Videos</h2>
         <button
           onClick={handleImport}
           disabled={uploading}
-          className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+          className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-brand-600 to-brand-500 px-4 py-2 text-sm font-medium text-white transition-all duration-300 hover:shadow-lg hover:shadow-brand-600/25 hover:-translate-y-0.5 disabled:opacity-50"
         >
           <Upload className="h-4 w-4" />
           {uploading ? 'Importing...' : 'Import Videos'}
@@ -92,16 +91,16 @@ export function VideoPanel({ projectId }: { projectId: string }) {
       </div>
 
       {error && (
-        <div className="flex items-start gap-2 rounded-lg bg-red-900/20 px-3 py-2 text-sm text-red-400">
+        <div className="flex items-start gap-2 rounded-xl border border-red-800/30 bg-red-900/15 px-4 py-3 text-sm text-red-400 animate-fade-in-up">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
+          <span className="min-w-0">{error}</span>
         </div>
       )}
 
       {loading ? (
         <p className="text-gray-500">Loading videos...</p>
       ) : videos.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-700 py-20">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-700/80 py-20 transition-colors hover:border-gray-600">
           <FileVideo className="mb-4 h-16 w-16 text-gray-600" />
           <p className="text-lg text-gray-400">No videos imported</p>
           <p className="mt-1 text-sm text-gray-500">
@@ -109,7 +108,7 @@ export function VideoPanel({ projectId }: { projectId: string }) {
           </p>
           <button
             onClick={handleImport}
-            className="mt-4 rounded-lg bg-gray-800 px-4 py-2 text-sm text-gray-300 hover:bg-gray-700"
+            className="mt-4 rounded-lg bg-gray-800 px-4 py-2 text-sm text-gray-300 transition-all duration-200 hover:bg-gray-700 hover:-translate-y-0.5"
           >
             Import your first video
           </button>
@@ -119,34 +118,34 @@ export function VideoPanel({ projectId }: { projectId: string }) {
           {videos.map((video) => (
             <div
               key={video.id}
-              className="group rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden"
+              className="group rounded-xl border border-gray-800/80 bg-gray-900/60 overflow-hidden transition-all duration-300 hover:border-gray-700/80 hover:shadow-lg hover:shadow-black/20 hover:-translate-y-0.5"
             >
               <div className="relative aspect-video bg-gray-800 flex items-center justify-center overflow-hidden">
                 <img
                   src={`${BASE_URL}/videos/${video.id}/thumbnail`}
                   alt={video.filename}
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                   onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
                 />
                 <button
                   onClick={() => window.api.openExternal(`file://${video.file_path}`)}
-                  className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 transition-opacity hover:opacity-100"
+                  className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-all duration-300 group-hover:opacity-100"
                 >
                   <Play className="h-10 w-10 text-white drop-shadow-lg" />
                 </button>
-                <span className="absolute bottom-2 right-2 rounded bg-black/70 px-2 py-0.5 text-xs text-white">
+                <span className="absolute bottom-2 right-2 rounded-md bg-black/70 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
                   {formatDuration(video.duration_ms)}
                 </span>
               </div>
               <div className="p-3">
                 <p className="truncate text-sm font-medium text-white">{video.filename}</p>
-                <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
+                <div className="mt-1.5 flex items-center justify-between text-xs text-gray-500">
                   <span>
                     {video.width}x{video.height} {video.format.toUpperCase()}
                   </span>
                   <button
                     onClick={() => handleDelete(video.id)}
-                    className="rounded p-1 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-gray-800 hover:text-red-400"
+                    className="rounded-lg p-1 opacity-0 transition-all duration-200 group-hover:opacity-100 hover:bg-gray-800 hover:text-red-400"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>

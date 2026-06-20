@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiClient } from '../../services/apiClient'
+import { useJobPoll } from '../../hooks/useJobPoll'
 import {
   Wand2,
   Palette,
@@ -50,6 +51,7 @@ export function VideoEditingPanel({ projectId }: { projectId: string }) {
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null)
   const [error, setError] = useState('')
   const [progressMsg, setProgressMsg] = useState('')
+  const [jobId, setJobId] = useState<string | null>(null)
 
   // Tool-specific options
   const [colorPreset, setColorPreset] = useState('cinematic')
@@ -95,28 +97,25 @@ export function VideoEditingPanel({ projectId }: { projectId: string }) {
     }
   }
 
-  const pollJob = async (jobId: string): Promise<Record<string, unknown>> => {
-    for (let i = 0; i < 120; i++) {
-      await new Promise(r => setTimeout(r, 2000))
-      try {
-        const status = await apiClient.get<{ status: string; error?: string; message?: string; result?: Record<string, unknown> }>(`/video-editing/jobs/${jobId}`)
-        if (status.message) setProgressMsg(status.message)
-        if (status.status === 'completed') return status.result || {}
-        if (status.status === 'failed') throw new Error(status.error || 'Processing failed')
-        if (status.status === 'unknown' || status.error === 'Job not found') {
-          throw new Error('Job not found. It may have been lost due to a server restart.')
-        }
-        if (status.status === 'cancelled') {
-          throw new Error('Job was cancelled.')
-        }
-      } catch (e) {
-        if ((e as Error).message?.includes('failed') ||
-            (e as Error).message?.includes('not found') ||
-            (e as Error).message?.includes('cancelled')) throw e
-      }
+  const poll = useJobPoll({
+    jobId,
+    endpoint: '/video-editing/jobs',
+    onComplete: (jobResult) => {
+      setJobId(null)
+      setProcessing(false)
+      setProgressMsg('')
+      setResult({
+        success: true,
+        message: (jobResult?.message as string) || `${activeTool?.label} completed successfully`
+      })
+    },
+    onError: (errMsg) => {
+      setJobId(null)
+      setProcessing(false)
+      setProgressMsg('')
+      setError(`Processing failed: ${errMsg}`)
     }
-    throw new Error('Processing timed out')
-  }
+  })
 
   const runTool = async () => {
     if (!selectedVideo || !selectedTool) return
@@ -185,20 +184,19 @@ export function VideoEditingPanel({ projectId }: { projectId: string }) {
           success: !!passed,
           message: passed ? `Quality check passed (score: ${score})` : `Quality check failed (score: ${score})`
         })
+        setProcessing(false)
+        setProgressMsg('')
       } else if (data.job_id) {
         setProgressMsg('Processing... this may take a minute')
-        const jobResult = await pollJob(data.job_id as string)
-        setResult({
-          success: true,
-          message: (jobResult.message as string) || `${activeTool?.label} completed successfully`
-        })
+        setJobId(data.job_id as string)
       } else {
         setResult({ success: true, message: 'Completed' })
+        setProcessing(false)
+        setProgressMsg('')
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       setError(`Processing failed: ${msg}`)
-    } finally {
       setProcessing(false)
       setProgressMsg('')
     }
@@ -366,8 +364,8 @@ export function VideoEditingPanel({ projectId }: { projectId: string }) {
               </>
             )}
           </button>
-          {progressMsg && (
-            <span className="mt-2 block text-xs text-gray-400">{progressMsg}</span>
+          {(poll.status || progressMsg) && (
+            <span className="mt-2 block text-xs text-gray-400">{poll.status || progressMsg}</span>
           )}
 
           {error && (

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { apiClient } from '../../services/apiClient'
+import { useJobPoll } from '../../hooks/useJobPoll'
 import { Bot, Play, CheckCircle, XCircle, Clock, Loader, AlertCircle, MinusCircle } from 'lucide-react'
 
 const agents = [
@@ -22,6 +23,7 @@ export function AgentPanel({ projectId }: { projectId: string }) {
   const [context, setContext] = useState('')
   const [error, setError] = useState('')
   const [progressMsg, setProgressMsg] = useState('')
+  const [jobId, setJobId] = useState<string | null>(null)
 
   const toggleAgent = (id: string) => {
     setSelectedAgents((prev) =>
@@ -29,40 +31,29 @@ export function AgentPanel({ projectId }: { projectId: string }) {
     )
   }
 
-  const pollJob = async (jobId: string): Promise<Record<string, AgentStatus> | null> => {
-    const maxAttempts = 120
-    for (let i = 0; i < maxAttempts; i++) {
-      await new Promise((r) => setTimeout(r, 2000))
-      try {
-        const status = await apiClient.get<{
-          status: string
-          error?: string
-          message?: string
-          result?: { agent_statuses?: Record<string, AgentStatus> }
-        }>(`/agents/jobs/${jobId}`)
-        if (status.message) setProgressMsg(status.message)
-        if (status.status === 'completed') {
-          return status.result?.agent_statuses || null
-        }
-        if (status.status === 'failed') {
-          setError(status.error || 'Pipeline failed')
-          return null
-        }
-        if (status.status === 'unknown' || status.error === 'Job not found') {
-          setError('Job not found. It may have been lost due to a server restart.')
-          return null
-        }
-        if (status.status === 'cancelled') {
-          setError('Job was cancelled.')
-          return null
-        }
-      } catch {
-        // Job may not be registered yet, keep polling
+  const poll = useJobPoll({
+    jobId,
+    endpoint: '/agents/jobs',
+    onComplete: (result) => {
+      setJobId(null)
+      setRunning(false)
+      setProgressMsg('')
+      if (result?.agent_statuses) {
+        setAgentStatuses(result.agent_statuses)
       }
+    },
+    onError: (errMsg) => {
+      setJobId(null)
+      setRunning(false)
+      setProgressMsg('')
+      setError(errMsg)
+      const finalStatuses: Record<string, AgentStatus> = {}
+      selectedAgents.forEach((id) => {
+        finalStatuses[id] = agentStatuses[id] === 'completed' ? 'completed' : 'failed'
+      })
+      setAgentStatuses(finalStatuses)
     }
-    setError('Pipeline timed out')
-    return null
-  }
+  })
 
   const handleRun = async () => {
     setRunning(true)
@@ -82,21 +73,13 @@ export function AgentPanel({ projectId }: { projectId: string }) {
 
       if (!resp.id) {
         setError('No job ID returned')
+        setRunning(false)
+        setProgressMsg('')
         return
       }
 
       setProgressMsg('Running agent pipeline...')
-      const result = await pollJob(resp.id)
-      if (result) {
-        setAgentStatuses(result)
-        setProgressMsg('')
-      } else {
-        const finalStatuses: Record<string, AgentStatus> = {}
-        selectedAgents.forEach((id) => {
-          finalStatuses[id] = agentStatuses[id] === 'completed' ? 'completed' : 'failed'
-        })
-        setAgentStatuses(finalStatuses)
-      }
+      setJobId(resp.id)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       setError(`Pipeline failed: ${msg}`)
@@ -105,7 +88,6 @@ export function AgentPanel({ projectId }: { projectId: string }) {
         failedStatuses[id] = 'failed'
       })
       setAgentStatuses(failedStatuses)
-    } finally {
       setRunning(false)
       setProgressMsg('')
     }
@@ -188,8 +170,8 @@ export function AgentPanel({ projectId }: { projectId: string }) {
               </>
             )}
           </button>
-          {progressMsg && (
-            <span className="text-xs text-gray-400">{progressMsg}</span>
+          {(poll.status || progressMsg) && (
+            <span className="text-xs text-gray-400">{poll.status || progressMsg}</span>
           )}
         </div>
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { apiClient, BASE_URL } from '../../services/apiClient'
+import { useJobPoll } from '../../hooks/useJobPoll'
 import { Mic, Play, Pause, Download, AlertCircle } from 'lucide-react'
 
 interface Voice {
@@ -27,6 +28,7 @@ export function VoiceoverPanel({ projectId }: { projectId: string }) {
   const [playing, setPlaying] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [progressMsg, setProgressMsg] = useState('')
+  const [jobId, setJobId] = useState<string | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
@@ -55,33 +57,23 @@ export function VoiceoverPanel({ projectId }: { projectId: string }) {
     }
   }
 
-  const pollJob = async (jobId: string): Promise<boolean> => {
-    const maxAttempts = 120
-    for (let i = 0; i < maxAttempts; i++) {
-      await new Promise((r) => setTimeout(r, 2000))
-      try {
-        const status = await apiClient.get<{ status: string; error?: string; message?: string }>(`/voiceover/jobs/${jobId}`)
-        if (status.message) setProgressMsg(status.message)
-        if (status.status === 'completed') return true
-        if (status.status === 'failed') {
-          setError(status.error || 'Generation failed')
-          return false
-        }
-        if (status.status === 'unknown' || status.error === 'Job not found') {
-          setError('Job not found. It may have been lost due to a server restart.')
-          return false
-        }
-        if (status.status === 'cancelled') {
-          setError('Job was cancelled.')
-          return false
-        }
-      } catch {
-        // Job may not be registered yet, keep polling
-      }
+  const poll = useJobPoll({
+    jobId,
+    endpoint: '/voiceover/jobs',
+    onComplete: () => {
+      setJobId(null)
+      setGenerating(false)
+      setProgressMsg('')
+      fetchVoiceovers()
+      setScriptText('')
+    },
+    onError: (errMsg) => {
+      setJobId(null)
+      setGenerating(false)
+      setProgressMsg('')
+      setError(errMsg)
     }
-    setError('Generation timed out')
-    return false
-  }
+  })
 
   const handleGenerate = async () => {
     if (!scriptText.trim() || !selectedVoice) return
@@ -96,20 +88,16 @@ export function VoiceoverPanel({ projectId }: { projectId: string }) {
 
       if (!resp.id) {
         setError('No job ID returned')
+        setGenerating(false)
+        setProgressMsg('')
         return
       }
 
       setProgressMsg('Generating with AI... this may take a minute')
-      const success = await pollJob(resp.id)
-      if (success) {
-        setProgressMsg('')
-        await fetchVoiceovers()
-        setScriptText('')
-      }
+      setJobId(resp.id)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       setError(`Generation failed: ${msg}`)
-    } finally {
       setGenerating(false)
       setProgressMsg('')
     }
@@ -186,8 +174,8 @@ export function VoiceoverPanel({ projectId }: { projectId: string }) {
               </>
             )}
           </button>
-          {progressMsg && (
-            <span className="text-xs text-gray-400">{progressMsg}</span>
+          {(poll.status || progressMsg) && (
+            <span className="text-xs text-gray-400">{poll.status || progressMsg}</span>
           )}
         </div>
 
