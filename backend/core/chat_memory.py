@@ -144,6 +144,54 @@ class ChatMemory:
             "total_conversations": total_conversations,
         }
 
+    def list_conversations(self) -> list[dict[str, Any]]:
+        """Return a summary of all saved conversations, newest first."""
+        conversations: list[dict[str, Any]] = []
+        for path in self.history_dir.glob("*.json"):
+            if path.suffix != ".json" or path.name.endswith(".tmp"):
+                continue
+            try:
+                conv = json.loads(path.read_text(encoding="utf-8"))
+                msgs = conv.get("messages", [])
+                if not msgs:
+                    continue
+                first_user_msg = ""
+                for m in msgs:
+                    if m.get("role") == "user" and m.get("content", "").strip():
+                        first_user_msg = m["content"][:100]
+                        break
+                last_msg = msgs[-1]
+                conv_id = path.stem
+                conversations.append({
+                    "id": conv_id,
+                    "project_id": conv.get("project_id"),
+                    "title": first_user_msg or "New conversation",
+                    "message_count": len(msgs),
+                    "last_message": last_msg.get("content", "")[:80],
+                    "last_role": last_msg.get("role", ""),
+                    "updated_at": conv.get("updated_at", ""),
+                    "created_at": conv.get("created_at", ""),
+                })
+            except (json.JSONDecodeError, OSError):
+                continue
+        conversations.sort(key=lambda c: c.get("updated_at", ""), reverse=True)
+        return conversations
+
+    def start_new_conversation(self, project_id: str | None = None) -> str:
+        """Start a new conversation and return its ID. Does NOT delete old ones."""
+        import uuid
+        conv_id = str(uuid.uuid4())[:8]
+        now = datetime.now(timezone.utc).isoformat()
+        data = {
+            "project_id": project_id,
+            "messages": [],
+            "created_at": now,
+            "updated_at": now,
+        }
+        path = self.history_dir / f"{conv_id}.json"
+        path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        return conv_id
+
     def clear_history(self, project_id: str | None = None) -> None:
         """Clear history for a project, or all history if project_id is None."""
         if project_id is not None:

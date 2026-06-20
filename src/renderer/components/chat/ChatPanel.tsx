@@ -27,7 +27,11 @@ import {
   FolderOpen,
   Archive,
   Shield,
-  Cpu
+  Cpu,
+  MessageSquare,
+  Clock,
+  PanelLeftClose,
+  PanelLeft
 } from 'lucide-react'
 import { apiClient } from '../../services/apiClient'
 
@@ -91,6 +95,17 @@ interface Skill {
 interface HistoryStats {
   total_messages: number
   total_conversations: number
+}
+
+interface ConversationSummary {
+  id: string
+  project_id: string | null
+  title: string
+  message_count: number
+  last_message: string
+  last_role: string
+  updated_at: string
+  created_at: string
 }
 
 type SettingsTab = 'rules' | 'skills' | 'memory'
@@ -629,6 +644,118 @@ function CommandPalette({
 }
 
 // ---------------------------------------------------------------------------
+// Conversation history sidebar
+// ---------------------------------------------------------------------------
+
+function ConversationList({
+  conversations,
+  activeId,
+  onSelect,
+  onNew,
+  onDelete,
+  collapsed,
+  onToggleCollapse,
+}: {
+  conversations: ConversationSummary[]
+  activeId: string | null
+  onSelect: (id: string) => void
+  onNew: () => void
+  onDelete: (id: string) => void
+  collapsed: boolean
+  onToggleCollapse: () => void
+}) {
+  if (collapsed) {
+    return (
+      <div className="flex w-10 flex-col items-center border-r border-gray-800/50 bg-gray-950/50 py-3 gap-3">
+        <button
+          onClick={onToggleCollapse}
+          className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-800 hover:text-gray-300 transition-colors"
+          title="Show conversations"
+        >
+          <PanelLeft className="h-4 w-4" />
+        </button>
+        <button
+          onClick={onNew}
+          className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-800 hover:text-brand-400 transition-colors"
+          title="New chat"
+        >
+          <Plus className="h-4 w-4" />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex w-56 flex-col border-r border-gray-800/50 bg-gray-950/50">
+      <div className="flex items-center justify-between px-3 py-2.5 border-b border-gray-800/50">
+        <span className="text-xs font-medium text-gray-400">Conversations</span>
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={onNew}
+            className="rounded-lg p-1 text-gray-500 hover:bg-gray-800 hover:text-brand-400 transition-colors"
+            title="New chat"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={onToggleCollapse}
+            className="rounded-lg p-1 text-gray-500 hover:bg-gray-800 hover:text-gray-300 transition-colors"
+            title="Hide sidebar"
+          >
+            <PanelLeftClose className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        {conversations.length === 0 ? (
+          <p className="px-3 py-6 text-center text-[11px] text-gray-600">No conversations yet</p>
+        ) : (
+          <div className="py-1">
+            {conversations.map((conv) => (
+              <button
+                key={conv.id}
+                onClick={() => onSelect(conv.id)}
+                className={`group flex w-full flex-col gap-0.5 px-3 py-2 text-left transition-colors ${
+                  activeId === conv.id
+                    ? 'bg-brand-600/10 border-l-2 border-brand-500'
+                    : 'border-l-2 border-transparent hover:bg-gray-800/50'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-1">
+                  <span className={`text-xs font-medium truncate ${
+                    activeId === conv.id ? 'text-brand-300' : 'text-gray-300'
+                  }`}>
+                    {conv.title}
+                  </span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onDelete(conv.id) }}
+                    className="shrink-0 rounded p-0.5 text-gray-600 opacity-0 hover:text-red-400 group-hover:opacity-100 transition-opacity"
+                    title="Delete"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <MessageSquare className="h-2.5 w-2.5 shrink-0 text-gray-600" />
+                  <span className="text-[10px] text-gray-600 truncate">{conv.last_message || 'Empty'}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Clock className="h-2.5 w-2.5 text-gray-700" />
+                  <span className="text-[10px] text-gray-700">
+                    {conv.updated_at ? new Date(conv.updated_at).toLocaleDateString([], { month: 'short', day: 'numeric' }) : ''}
+                  </span>
+                  <span className="text-[10px] text-gray-700">{conv.message_count} msgs</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main ChatPanel
 // ---------------------------------------------------------------------------
 
@@ -642,6 +769,9 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
   const [showPalette, setShowPalette] = useState(false)
   const [activeModel, setActiveModel] = useState<string>('')
   const [historyLoading, setHistoryLoading] = useState(false)
+  const [conversations, setConversations] = useState<ConversationSummary[]>([])
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [thinkingMessage, setThinkingMessage] = useState('')
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -700,6 +830,56 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
     const interval = setInterval(() => setElapsedSeconds((s) => s + 1), 1000)
     return () => clearInterval(interval)
   }, [sending])
+
+  // Load conversation list
+  const loadConversations = useCallback(async () => {
+    try {
+      const data = await apiClient.get<ConversationSummary[]>('/chat/conversations')
+      setConversations(data)
+    } catch { /* optional */ }
+  }, [])
+
+  useEffect(() => { loadConversations() }, [loadConversations])
+
+  const handleSelectConversation = useCallback(async (convId: string) => {
+    setActiveConversationId(convId)
+    setHistoryLoading(true)
+    setMessages([])
+    try {
+      const data = await apiClient.get<{ messages: Array<{ role: string; content: string; timestamp: string; metadata?: Record<string, unknown> }> }>(`/chat/history?project_id=${convId}`)
+      if (data.messages && data.messages.length > 0) {
+        const loaded: ChatMessage[] = data.messages.map((m, i) => ({
+          id: `history-${i}`,
+          role: m.role as 'user' | 'assistant',
+          content: m.role === 'assistant' ? extractReplyText(m.content) : m.content,
+          timestamp: new Date(m.timestamp),
+        }))
+        setMessages(loaded)
+      }
+    } catch { /* optional */ }
+    finally { setHistoryLoading(false) }
+  }, [])
+
+  const handleNewChat = useCallback(() => {
+    setMessages([])
+    setInput('')
+    setAttachments([])
+    setDirectories([])
+    setShowPalette(false)
+    setActiveConversationId(null)
+    loadConversations()
+  }, [loadConversations])
+
+  const handleDeleteConversation = useCallback(async (convId: string) => {
+    try {
+      await apiClient.delete(`/chat/history?project_id=${convId}`)
+      if (activeConversationId === convId) {
+        setMessages([])
+        setActiveConversationId(null)
+      }
+      loadConversations()
+    } catch { /* optional */ }
+  }, [activeConversationId, loadConversations])
 
   const handleFeedback = useCallback(
     async (messageId: string, rating: 'up' | 'down') => {
@@ -785,8 +965,9 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
     } finally {
       setSending(false)
       setThinkingMessage('')
+      loadConversations()
     }
-  }, [projectId, activeModel])
+  }, [projectId, activeModel, loadConversations])
 
   const handleSend = () => {
     sendMessage(input, attachments, directories)
@@ -833,8 +1014,19 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
 
   return (
     <div className="flex h-full">
+      {/* Conversation sidebar */}
+      <ConversationList
+        conversations={conversations}
+        activeId={activeConversationId}
+        onSelect={handleSelectConversation}
+        onNew={handleNewChat}
+        onDelete={handleDeleteConversation}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+      />
+
       {/* Main chat area */}
-      <div className="flex flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         {/* Chat header */}
         <div className="flex items-center justify-between border-b border-gray-800 px-4 py-2.5">
           <div className="flex items-center gap-2">
@@ -846,15 +1038,7 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
           </div>
           <div className="flex items-center gap-1">
             <button
-              onClick={() => {
-                setMessages([])
-                setInput('')
-                setAttachments([])
-                setDirectories([])
-                setShowPalette(false)
-                const url = projectId ? `/chat/history?project_id=${projectId}` : '/chat/history'
-                apiClient.delete(url).catch(() => {})
-              }}
+              onClick={handleNewChat}
               className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-800 hover:text-gray-300"
               title="New chat"
             >

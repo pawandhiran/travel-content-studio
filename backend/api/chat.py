@@ -155,6 +155,12 @@ async def get_history(
     return {"messages": messages, "stats": stats}
 
 
+@router.get("/conversations")
+async def list_conversations() -> list[dict[str, Any]]:
+    """List all saved conversations with preview info."""
+    return chat_agent.memory.list_conversations()
+
+
 @router.delete("/history")
 async def clear_history(project_id: Optional[str] = None):
     chat_agent.memory.clear_history(project_id)
