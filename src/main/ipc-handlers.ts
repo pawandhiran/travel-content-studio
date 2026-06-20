@@ -62,14 +62,16 @@ export function setupIpcHandlers(
 
   ipcMain.handle('select-files', async (_, options: { filters?: Electron.FileFilter[]; multiSelections?: boolean }) => {
     const properties: ('openFile' | 'multiSelections')[] = ['openFile']
-    if (options.multiSelections) {
+    if (options.multiSelections !== false) {
       properties.push('multiSelections')
     }
 
     const result = await dialog.showOpenDialog({
       properties,
       filters: options.filters || [
-        { name: 'Video Files', extensions: ['mp4', 'mov', 'avi', 'mkv'] },
+        { name: 'Media Files', extensions: ['mp4', 'mov', 'avi', 'mkv', 'webm', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'tiff', 'bmp'] },
+        { name: 'Archives', extensions: ['zip'] },
+        { name: 'Documents', extensions: ['txt', 'md', 'csv', 'json', 'pdf', 'doc', 'docx'] },
         { name: 'All Files', extensions: ['*'] }
       ]
     })

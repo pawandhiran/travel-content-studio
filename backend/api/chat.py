@@ -18,12 +18,16 @@ class ChatMessageRequest(BaseModel):
     message: str
     project_id: Optional[str] = None
     attachments: list[str] = Field(default_factory=list)
+    directories: list[str] = Field(default_factory=list)
 
 
 class ChatMessageResponse(BaseModel):
     reply: str
     actions_taken: list[dict[str, Any]] = Field(default_factory=list)
     suggestions: list[str] = Field(default_factory=list)
+    model_used: Optional[str] = None
+    intent: Optional[str] = None
+    review: Optional[dict[str, Any]] = None
 
 
 class AddRuleRequest(BaseModel):
@@ -77,10 +81,11 @@ async def send_message(body: ChatMessageRequest) -> ChatMessageResponse:
         result = await chat_agent.run_skill(skill["id"], project_id=body.project_id)
         return ChatMessageResponse(**result)
 
+    all_attachments = list(body.attachments) + list(body.directories)
     result = await chat_agent.process_message(
         message=body.message,
         project_id=body.project_id,
-        attachments=body.attachments,
+        attachments=all_attachments,
     )
     return ChatMessageResponse(**result)
 

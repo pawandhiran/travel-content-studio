@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
+import zipfile
+from pathlib import Path
 from typing import Any, Optional
 
 import httpx
 
 from config import get_settings
 from core.logging_config import get_logger
-from core.model_router import ModelRouter
+from core.model_router import ModelRouter, TASK_MODEL_MAP
 from core.chat_memory import ChatMemory
 from core.user_rules import UserRulesManager
 from core.feedback_engine import feedback_engine
@@ -61,36 +64,104 @@ Respond in JSON with this exact schema:
 Always return valid JSON. Do not include anything outside the JSON object.\
 """
 
+REVIEW_PROMPT = """\
+You are a quality reviewer for Travel Content Studio. Review the following AI response and tool execution results.
+Check for: accuracy, completeness, tone appropriateness, and whether the user's request was fully addressed.
+
+Original user request: {user_message}
+AI response: {ai_reply}
+Tool results: {tool_results}
+
+Respond in JSON:
+{{"quality_score": 1-10, "issues": ["list of issues if any"], "improved_reply": "optional improved version of the reply if score < 7", "passed": true/false}}
+"""
+
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".tiff", ".bmp"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v", ".insv"}
+ARCHIVE_EXTENSIONS = {".zip"}
+DOCUMENT_EXTENSIONS = {".txt", ".md", ".csv", ".json", ".pdf", ".doc", ".docx"}
+
+# Keyword-based intent classification for dynamic model routing
+INTENT_KEYWORDS: dict[str, list[str]] = {
+    "blog": ["blog", "article", "write a post", "travel story", "guide", "long form", "write about"],
+    "script": ["script", "narration", "voiceover text", "dialogue", "storyboard"],
+    "title": ["title", "headline", "name for", "heading", "hook"],
+    "hashtags": ["hashtag", "tags", "keywords", "seo"],
+    "scene_classification": ["analyze", "classify", "what kind of", "detect scene", "identify"],
+    "photo_scene_detect": ["look at this photo", "describe this image", "what's in this picture"],
+    "reel_script": ["reel", "short video", "instagram", "tiktok", "shorts"],
+    "thumbnail_text": ["thumbnail", "cover image", "banner"],
+    "social_posts": ["caption", "social media", "post for", "tweet", "facebook"],
+}
 
 
 def _classify_attachments(
     paths: list[str],
-) -> tuple[list[str], list[str], list[str]]:
-    images, videos, other = [], [], []
+) -> tuple[list[str], list[str], list[str], list[str]]:
+    images, videos, archives, other = [], [], [], []
     for p in paths:
         ext = "." + p.rsplit(".", 1)[-1].lower() if "." in p else ""
         if ext in IMAGE_EXTENSIONS:
             images.append(p)
         elif ext in VIDEO_EXTENSIONS:
             videos.append(p)
+        elif ext in ARCHIVE_EXTENSIONS:
+            archives.append(p)
         else:
             other.append(p)
-    return images, videos, other
+    return images, videos, archives, other
+
+
+def _expand_directories_and_zips(paths: list[str]) -> list[str]:
+    """Expand directories to their file contents and extract zip file listings."""
+    expanded: list[str] = []
+    for p in paths:
+        path = Path(p)
+        if path.is_dir():
+            for child in sorted(path.rglob("*")):
+                if child.is_file() and not child.name.startswith("."):
+                    expanded.append(str(child))
+        elif path.suffix.lower() == ".zip" and path.is_file():
+            try:
+                with zipfile.ZipFile(path, "r") as zf:
+                    extract_dir = Path(get_settings().data_dir) / "chat_uploads" / path.stem
+                    extract_dir.mkdir(parents=True, exist_ok=True)
+                    zf.extractall(extract_dir)
+                    for member in zf.namelist():
+                        member_path = extract_dir / member
+                        if member_path.is_file():
+                            expanded.append(str(member_path))
+            except Exception as exc:
+                log.warning("zip_extraction_failed", path=p, error=str(exc))
+                expanded.append(p)
+        else:
+            expanded.append(p)
+    return expanded
 
 
 def _build_attachment_context(
-    images: list[str], videos: list[str], other: list[str]
+    images: list[str], videos: list[str], archives: list[str], other: list[str]
 ) -> str:
     parts: list[str] = []
     if images:
         parts.append(f"The user attached {len(images)} image(s): {', '.join(images)}")
     if videos:
         parts.append(f"The user attached {len(videos)} video(s): {', '.join(videos)}")
+    if archives:
+        parts.append(f"The user attached {len(archives)} archive(s): {', '.join(archives)}")
     if other:
         parts.append(f"The user also attached: {', '.join(other)}")
     return "\n".join(parts)
+
+
+def _classify_intent(message: str) -> str:
+    """Classify user message intent for dynamic model routing."""
+    msg_lower = message.lower()
+    for task_type, keywords in INTENT_KEYWORDS.items():
+        for kw in keywords:
+            if kw in msg_lower:
+                return task_type
+    return "chat"
 
 
 def _extract_json(text: str) -> dict[str, Any]:
@@ -201,11 +272,13 @@ class ChatAgent:
             self.memory.add_message(project_id, "assistant", slash_result["reply"])
             return slash_result
 
-        images, videos, other = _classify_attachments(attachments)
+        # Expand directories and zip files into individual file paths
+        expanded = _expand_directories_and_zips(attachments)
+        images, videos, archives, other = _classify_attachments(expanded)
 
         user_parts = [message]
-        if attachments:
-            user_parts.append(_build_attachment_context(images, videos, other))
+        if expanded:
+            user_parts.append(_build_attachment_context(images, videos, archives, other))
         if project_id:
             user_parts.append(f"Current project ID: {project_id}")
 
@@ -213,10 +286,17 @@ class ChatAgent:
 
         self.memory.add_message(
             project_id, "user", message,
-            metadata={"attachments": attachments} if attachments else None,
+            metadata={"attachments": expanded} if expanded else None,
         )
 
         system_prompt = self._build_system_prompt(project_id)
+
+        # Dynamic model selection: classify intent, then pick the best model
+        intent = _classify_intent(message)
+        if images:
+            intent = "photo_scene_detect"
+        elif videos:
+            intent = "script"
 
         # Check if user has selected a specific model on the dashboard
         from core.database import AsyncSessionLocal
@@ -230,7 +310,10 @@ class ChatAgent:
         except Exception:
             pass
 
-        model = active_model or await self._router.get_model("chat")
+        model = active_model or await self._router.get_model(intent)
+        model_used = model
+        log.info("chat_model_selected", intent=intent, model=model)
+
         raw_reply = await self._call_ollama(model, system_prompt, user_content)
         parsed = _extract_json(raw_reply)
 
@@ -244,13 +327,28 @@ class ChatAgent:
         actions_taken: list[dict[str, Any]] = []
         suggestions: list[str] = []
 
-        for tc in tool_calls:
-            tool_name = tc.get("tool", "")
-            args = tc.get("args", {})
-            result = await self._execute_tool(tool_name, args, project_id)
-            actions_taken.append(
-                {"tool": tool_name, "args": args, "result": result}
+        # Execute multiple tool calls in parallel (multi-agent)
+        if len(tool_calls) > 1:
+            actions_taken = await self._run_tools_parallel(tool_calls, project_id)
+        else:
+            for tc in tool_calls:
+                tool_name = tc.get("tool", "")
+                args = tc.get("args", {})
+                result = await self._execute_tool(tool_name, args, project_id)
+                actions_taken.append(
+                    {"tool": tool_name, "args": args, "result": result}
+                )
+
+        # Run review agent if tools were executed
+        review_result = None
+        if actions_taken:
+            review_result = await self._run_review_agent(
+                message, reply_text, actions_taken
             )
+            if review_result and not review_result.get("passed", True):
+                improved = review_result.get("improved_reply")
+                if improved:
+                    reply_text = improved
 
         if images and not tool_calls:
             suggestions.append("Enhance these photos for stock photography")
@@ -259,7 +357,7 @@ class ChatAgent:
             suggestions.append("Transcribe this video")
             suggestions.append("Apply cinematic color grading")
             suggestions.append("Generate captions for this video")
-        if not tool_calls and not attachments:
+        if not tool_calls and not expanded:
             suggestions.append("Create a new project")
             suggestions.append("Generate a travel blog post")
 
@@ -268,6 +366,8 @@ class ChatAgent:
             metadata={
                 "actions": [a["tool"] for a in actions_taken],
                 "suggestions": suggestions,
+                "model_used": model_used,
+                "intent": intent,
             } if actions_taken or suggestions else None,
         )
 
@@ -275,6 +375,9 @@ class ChatAgent:
             "reply": reply_text,
             "actions_taken": actions_taken,
             "suggestions": suggestions,
+            "model_used": model_used,
+            "intent": intent,
+            "review": review_result,
         }
 
     async def run_skill(
@@ -362,6 +465,61 @@ class ChatAgent:
             return None  # handled async in process_message caller
 
         return None
+
+    async def _run_tools_parallel(
+        self, tool_calls: list[dict], project_id: str | None
+    ) -> list[dict[str, Any]]:
+        """Execute multiple tool calls concurrently (multi-agent pattern)."""
+        async def _run_one(tc: dict) -> dict[str, Any]:
+            tool_name = tc.get("tool", "")
+            args = tc.get("args", {})
+            result = await self._execute_tool(tool_name, args, project_id)
+            return {"tool": tool_name, "args": args, "result": result}
+
+        results = await asyncio.gather(
+            *[_run_one(tc) for tc in tool_calls],
+            return_exceptions=True,
+        )
+        actions: list[dict[str, Any]] = []
+        for i, r in enumerate(results):
+            if isinstance(r, Exception):
+                tc = tool_calls[i]
+                actions.append({
+                    "tool": tc.get("tool", "unknown"),
+                    "args": tc.get("args", {}),
+                    "result": {"status": "error", "detail": str(r)},
+                })
+            else:
+                actions.append(r)
+        return actions
+
+    async def _run_review_agent(
+        self,
+        user_message: str,
+        ai_reply: str,
+        actions: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        """Run a review agent to check quality of the response."""
+        try:
+            review_model = await self._router.get_model("chat")
+            prompt = REVIEW_PROMPT.format(
+                user_message=user_message,
+                ai_reply=ai_reply,
+                tool_results=json.dumps(
+                    [{"tool": a["tool"], "status": a["result"].get("status")} for a in actions]
+                ),
+            )
+            raw = await self._call_ollama(review_model, prompt, "Review the above.")
+            parsed = _extract_json(raw)
+            return {
+                "quality_score": parsed.get("quality_score", 0),
+                "issues": parsed.get("issues", []),
+                "improved_reply": parsed.get("improved_reply"),
+                "passed": parsed.get("passed", True),
+            }
+        except Exception as exc:
+            log.warning("review_agent_failed", error=str(exc))
+            return None
 
     async def _call_ollama(
         self, model: str, system_prompt: str, user_message: str

@@ -22,7 +22,14 @@ import {
   Brain,
   Zap,
   List,
-  Hash
+  Hash,
+  Copy,
+  Check,
+  RefreshCw,
+  FolderOpen,
+  Archive,
+  Shield,
+  Cpu
 } from 'lucide-react'
 import { apiClient } from '../../services/apiClient'
 
@@ -36,6 +43,13 @@ interface ActionTaken {
   result: { status: string; data?: unknown; detail?: string }
 }
 
+interface ReviewResult {
+  quality_score: number
+  issues: string[]
+  passed: boolean
+  improved_reply?: string
+}
+
 interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
@@ -45,12 +59,18 @@ interface ChatMessage {
   suggestions?: string[]
   timestamp: Date
   feedback?: 'up' | 'down'
+  modelUsed?: string
+  intent?: string
+  review?: ReviewResult
 }
 
 interface ChatResponse {
   reply: string
   actions_taken: ActionTaken[]
   suggestions: string[]
+  model_used?: string
+  intent?: string
+  review?: ReviewResult
 }
 
 interface Rule {
@@ -115,18 +135,21 @@ function extractReplyText(content: string): string {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function AttachmentPreview({ path, onRemove }: { path: string; onRemove: () => void }) {
+function AttachmentPreview({ path, onRemove, isDir }: { path: string; onRemove: () => void; isDir?: boolean }) {
   const filename = path.split('/').pop() || path
   const ext = filename.split('.').pop()?.toLowerCase() || ''
-  const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)
-  const isVideo = ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext)
+  const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'tiff', 'bmp'].includes(ext)
+  const isVideo = ['mp4', 'mov', 'avi', 'mkv', 'webm', 'm4v'].includes(ext)
+  const isArchive = ['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)
 
   return (
     <div className="group flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-800/50 px-3 py-1.5 text-sm">
-      {isImage && <Image className="h-3.5 w-3.5 text-emerald-400" />}
-      {isVideo && <Video className="h-3.5 w-3.5 text-blue-400" />}
-      {!isImage && !isVideo && <FileText className="h-3.5 w-3.5 text-gray-400" />}
-      <span className="max-w-[120px] truncate text-gray-300">{filename}</span>
+      {isDir && <FolderOpen className="h-3.5 w-3.5 text-amber-400" />}
+      {!isDir && isImage && <Image className="h-3.5 w-3.5 text-emerald-400" />}
+      {!isDir && isVideo && <Video className="h-3.5 w-3.5 text-blue-400" />}
+      {!isDir && isArchive && <Archive className="h-3.5 w-3.5 text-purple-400" />}
+      {!isDir && !isImage && !isVideo && !isArchive && <FileText className="h-3.5 w-3.5 text-gray-400" />}
+      <span className="max-w-[150px] truncate text-gray-300">{isDir ? `${filename}/` : filename}</span>
       <button
         onClick={onRemove}
         className="text-gray-500 opacity-0 transition-opacity hover:text-gray-300 group-hover:opacity-100"
@@ -182,6 +205,24 @@ function ActionCard({ action }: { action: ActionTaken }) {
   )
 }
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+  return (
+    <button
+      onClick={handleCopy}
+      className="rounded p-1 text-gray-600 transition-colors hover:bg-gray-800 hover:text-gray-400"
+      title="Copy text"
+    >
+      {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+    </button>
+  )
+}
+
 function FeedbackButtons({
   messageId,
   feedback,
@@ -215,6 +256,21 @@ function FeedbackButtons({
       >
         <ThumbsDown className="h-3 w-3" />
       </button>
+    </div>
+  )
+}
+
+function ReviewBadge({ review }: { review: ReviewResult }) {
+  const passed = review.passed
+  return (
+    <div className={`mt-1 flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] ${
+      passed ? 'bg-emerald-950/30 text-emerald-400' : 'bg-amber-950/30 text-amber-400'
+    }`}>
+      <Shield className="h-3 w-3" />
+      <span>Quality: {review.quality_score}/10</span>
+      {review.issues.length > 0 && (
+        <span className="text-gray-500">- {review.issues[0]}</span>
+      )}
     </div>
   )
 }
@@ -560,6 +616,7 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<string[]>([])
+  const [directories, setDirectories] = useState<string[]>([])
   const [sending, setSending] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [showPalette, setShowPalette] = useState(false)
@@ -624,28 +681,31 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
     [projectId]
   )
 
-  const handleSend = async () => {
-    const trimmed = input.trim()
-    if (!trimmed && attachments.length === 0) return
+  const sendMessage = useCallback(async (text: string, files: string[] = [], dirs: string[] = []) => {
+    const trimmed = text.trim()
+    if (!trimmed && files.length === 0 && dirs.length === 0) return
 
+    const allAttachments = [...files, ...dirs]
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: 'user',
       content: trimmed,
-      attachments: attachments.length > 0 ? [...attachments] : undefined,
+      attachments: allAttachments.length > 0 ? allAttachments : undefined,
       timestamp: new Date()
     }
 
     setMessages((prev) => [...prev, userMessage])
     setInput('')
     setAttachments([])
+    setDirectories([])
     setSending(true)
 
     try {
       const response = await apiClient.post<ChatResponse>('/chat/message', {
         message: trimmed,
         project_id: projectId || null,
-        attachments: userMessage.attachments || []
+        attachments: files,
+        directories: dirs,
       })
 
       const aiMessage: ChatMessage = {
@@ -654,6 +714,9 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
         content: extractReplyText(response.reply),
         actions: response.actions_taken.length > 0 ? response.actions_taken : undefined,
         suggestions: response.suggestions.length > 0 ? response.suggestions : undefined,
+        modelUsed: response.model_used,
+        intent: response.intent,
+        review: response.review || undefined,
         timestamp: new Date()
       }
 
@@ -669,6 +732,14 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
     } finally {
       setSending(false)
     }
+  }, [projectId])
+
+  const handleSend = () => {
+    sendMessage(input, attachments, directories)
+  }
+
+  const handleResend = (msg: ChatMessage) => {
+    sendMessage(msg.content, msg.attachments?.filter(a => !a.endsWith('/')) || [], msg.attachments?.filter(a => a.endsWith('/')) || [])
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -684,6 +755,15 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
     const paths = Array.from(files).map((f) => (f as any).path || f.name)
     setAttachments((prev) => [...prev, ...paths])
     e.target.value = ''
+  }
+
+  const handleFolderSelect = async () => {
+    try {
+      const dir = await window.api.selectDirectory()
+      if (dir) {
+        setDirectories((prev) => [...prev, dir])
+      }
+    } catch { /* user cancelled */ }
   }
 
   const handleSuggestionClick = (suggestion: string) => {
@@ -783,7 +863,7 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
               {messages.map((msg) => (
                 <div
                   key={msg.id}
-                  className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  className={`group/msg flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   {msg.role === 'assistant' && (
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-800">
@@ -821,11 +901,17 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
 
                     {msg.actions && msg.actions.length > 0 && (
                       <div className="space-y-2">
+                        <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
+                          <Cpu className="h-3 w-3" />
+                          <span>{msg.actions.length} agent{msg.actions.length > 1 ? 's' : ''} executed{msg.actions.length > 1 ? ' in parallel' : ''}</span>
+                        </div>
                         {msg.actions.map((action, i) => (
                           <ActionCard key={i} action={action} />
                         ))}
                       </div>
                     )}
+
+                    {msg.review && <ReviewBadge review={msg.review} />}
 
                     {msg.suggestions && msg.suggestions.length > 0 && (
                       <div className="flex flex-wrap gap-1.5">
@@ -841,7 +927,7 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
                       </div>
                     )}
 
-                    {/* Timestamp + feedback */}
+                    {/* Timestamp + model + feedback + copy + resend */}
                     <div className="flex items-center gap-2">
                       <p className="text-[10px] text-gray-600">
                         {msg.timestamp.toLocaleTimeString([], {
@@ -849,6 +935,30 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
                           minute: '2-digit'
                         })}
                       </p>
+                      {msg.role === 'assistant' && msg.modelUsed && (
+                        <span className="flex items-center gap-1 rounded bg-gray-800 px-1.5 py-0.5 text-[10px] text-gray-500">
+                          <Cpu className="h-2.5 w-2.5" />
+                          {msg.modelUsed}
+                        </span>
+                      )}
+                      {msg.role === 'assistant' && msg.intent && msg.intent !== 'chat' && (
+                        <span className="rounded bg-brand-900/30 px-1.5 py-0.5 text-[10px] text-brand-400">
+                          {msg.intent}
+                        </span>
+                      )}
+                      <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover/msg:opacity-100">
+                        <CopyButton text={msg.content} />
+                        {msg.role === 'user' && (
+                          <button
+                            onClick={() => handleResend(msg)}
+                            className="rounded p-1 text-gray-600 transition-colors hover:bg-gray-800 hover:text-gray-400"
+                            title="Resend this message"
+                            disabled={sending}
+                          >
+                            <RefreshCw className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
                       {msg.role === 'assistant' && (
                         <FeedbackButtons
                           messageId={msg.id}
@@ -886,13 +996,21 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
         {/* Input area */}
         <div className="border-t border-gray-800 p-4">
           <div className="mx-auto max-w-3xl">
-            {attachments.length > 0 && (
+            {(attachments.length > 0 || directories.length > 0) && (
               <div className="mb-2 flex flex-wrap gap-2">
                 {attachments.map((a, i) => (
                   <AttachmentPreview
-                    key={i}
+                    key={`file-${i}`}
                     path={a}
                     onRemove={() => setAttachments((prev) => prev.filter((_, idx) => idx !== i))}
+                  />
+                ))}
+                {directories.map((d, i) => (
+                  <AttachmentPreview
+                    key={`dir-${i}`}
+                    path={d}
+                    isDir
+                    onRemove={() => setDirectories((prev) => prev.filter((_, idx) => idx !== i))}
                   />
                 ))}
               </div>
@@ -905,15 +1023,21 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-700 hover:text-gray-200"
-                  title="Attach files"
+                  title="Attach files (photos, videos, zip, any file)"
                 >
                   <Paperclip className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={handleFolderSelect}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-700 hover:text-gray-200"
+                  title="Attach a folder (all files inside will be included)"
+                >
+                  <FolderOpen className="h-4 w-4" />
                 </button>
                 <input
                   ref={fileInputRef}
                   type="file"
                   multiple
-                  accept="image/*,video/*"
                   className="hidden"
                   onChange={handleFileSelect}
                 />
@@ -928,7 +1052,7 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
                 />
                 <button
                   onClick={handleSend}
-                  disabled={sending || (!input.trim() && attachments.length === 0)}
+                  disabled={sending || (!input.trim() && attachments.length === 0 && directories.length === 0)}
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-600 text-white transition-colors hover:bg-brand-500 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {sending ? (
