@@ -99,8 +99,8 @@ app.on('before-quit', async (e) => {
       // Backend may already be down
     }
 
-    await ollamaManager.stop()
-    await backendManager.stop()
+    try { await ollamaManager.stop() } catch { /* safe shutdown */ }
+    try { await backendManager.stop() } catch { /* safe shutdown */ }
     app.quit()
   }
 })

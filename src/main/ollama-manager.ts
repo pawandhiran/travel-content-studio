@@ -36,8 +36,13 @@ export class OllamaManager {
       console.error(`[Ollama] ${data.toString().trim()}`)
     })
 
+    this.process.on('error', (err) => {
+      console.error(`[OllamaManager] Spawn error: ${err.message}`)
+      this.running = false
+    })
+
     this.process.on('exit', (code) => {
-      console.log(`[OllamaManager] Ollama exited with code ${code}`)
+      try { console.log(`[OllamaManager] Ollama exited with code ${code}`) } catch { /* EPIPE safe */ }
       this.running = false
     })
 
@@ -56,14 +61,20 @@ export class OllamaManager {
 
   async stop(): Promise<void> {
     if (this.externallyManaged) {
-      console.log('[OllamaManager] Ollama is externally managed, not stopping')
+      try { console.log('[OllamaManager] Ollama is externally managed, not stopping') } catch { /* EPIPE safe */ }
       return
     }
 
     if (!this.process || !this.running) return
 
-    console.log('[OllamaManager] Stopping Ollama...')
-    this.process.kill('SIGTERM')
+    try {
+      console.log('[OllamaManager] Stopping Ollama...')
+      if (!this.process.killed) {
+        this.process.kill('SIGTERM')
+      }
+    } catch {
+      // Process may already be gone -- ignore EPIPE / ESRCH
+    }
     this.running = false
   }
 

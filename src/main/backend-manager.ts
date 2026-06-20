@@ -98,8 +98,12 @@ export class BackendManager {
     }
 
     setTimeout(() => {
-      if (this.process && !this.process.killed) {
-        this.process.kill('SIGTERM')
+      try {
+        if (this.process && !this.process.killed) {
+          this.process.kill('SIGTERM')
+        }
+      } catch {
+        // Process may already be gone -- ignore EPIPE / ESRCH
       }
     }, 2000)
 
