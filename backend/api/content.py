@@ -52,6 +52,22 @@ async def generate_content(
     return {"id": job_id, "project_id": project_id, "job_type": "content_generation", "status": "pending"}
 
 
+@router.get("/content/jobs/{job_id}")
+async def get_content_job_status(job_id: str):
+    """Get the status of a content generation job from the in-memory task queue."""
+    status = task_queue.get_status(job_id)
+    if not status:
+        return {"error": "Job not found", "status": "unknown"}
+    return {
+        "id": status["id"],
+        "status": status["status"].value if hasattr(status["status"], "value") else str(status["status"]),
+        "progress": status.get("progress", 0),
+        "message": status.get("message", ""),
+        "error": status.get("error"),
+        "result": status.get("result"),
+    }
+
+
 @router.get("/projects/{project_id}/content", response_model=ContentListResponse)
 async def list_content(
     project_id: str,

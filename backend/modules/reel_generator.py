@@ -10,6 +10,7 @@ from ulid import ULID
 
 from core.errors import NotFoundError, ProcessingError
 from core.logging_config import get_logger
+from core.model_router import model_router
 from models.db_models import DurationType, Project, Reel
 from modules.content_engine import _get_project_context
 from services.ollama_client import OllamaClient
@@ -66,8 +67,9 @@ async def generate_reel(
     )
 
     try:
+        model = await model_router.get_model("reel_script")
         response = await _ollama.generate(
-            model="llama3.2",
+            model=model,
             prompt=prompt,
             system=_SYSTEM_PROMPT,
         )

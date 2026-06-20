@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiClient } from '../../services/apiClient'
-import { Mic, Play, Pause, Download } from 'lucide-react'
+import { Mic, Play, Pause, Download, AlertCircle } from 'lucide-react'
 
 interface Voice {
   id: string
@@ -25,6 +25,8 @@ export function VoiceoverPanel({ projectId }: { projectId: string }) {
   const [selectedVoice, setSelectedVoice] = useState('')
   const [generating, setGenerating] = useState(false)
   const [playing, setPlaying] = useState<string | null>(null)
+  const [error, setError] = useState('')
+  const [progressMsg, setProgressMsg] = useState('')
 
   useEffect(() => {
     fetchVoices()
@@ -38,8 +40,8 @@ export function VoiceoverPanel({ projectId }: { projectId: string }) {
       if (data.voices?.length > 0 && !selectedVoice) {
         setSelectedVoice(data.voices[0].id)
       }
-    } catch {
-      // Voices not available
+    } catch (err: unknown) {
+      console.error('Failed to fetch voices:', err)
     }
   }
 
@@ -47,25 +49,60 @@ export function VoiceoverPanel({ projectId }: { projectId: string }) {
     try {
       const data = await apiClient.get<VoiceoverItem[]>(`/projects/${projectId}/voiceovers`)
       setVoiceovers(Array.isArray(data) ? data : [])
-    } catch {
-      // Handle error
+    } catch (err: unknown) {
+      console.error('Failed to fetch voiceovers:', err)
     }
+  }
+
+  const pollJob = async (jobId: string): Promise<boolean> => {
+    const maxAttempts = 120
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise((r) => setTimeout(r, 2000))
+      try {
+        const status = await apiClient.get<{ status: string; error?: string; message?: string }>(`/voiceover/jobs/${jobId}`)
+        if (status.message) setProgressMsg(status.message)
+        if (status.status === 'completed') return true
+        if (status.status === 'failed') {
+          setError(status.error || 'Generation failed')
+          return false
+        }
+      } catch {
+        // Job may not be registered yet, keep polling
+      }
+    }
+    setError('Generation timed out')
+    return false
   }
 
   const handleGenerate = async () => {
     if (!scriptText.trim() || !selectedVoice) return
     setGenerating(true)
+    setError('')
+    setProgressMsg('Submitting...')
     try {
-      await apiClient.post(`/projects/${projectId}/voiceover`, {
+      const resp = await apiClient.post<{ id: string }>(`/projects/${projectId}/voiceover`, {
         script_text: scriptText,
         voice_id: selectedVoice
       })
-      await fetchVoiceovers()
-      setScriptText('')
-    } catch {
-      // Handle error
+
+      if (!resp.id) {
+        setError('No job ID returned')
+        return
+      }
+
+      setProgressMsg('Generating with AI... this may take a minute')
+      const success = await pollJob(resp.id)
+      if (success) {
+        setProgressMsg('')
+        await fetchVoiceovers()
+        setScriptText('')
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(`Generation failed: ${msg}`)
     } finally {
       setGenerating(false)
+      setProgressMsg('')
     }
   }
 
@@ -109,23 +146,35 @@ export function VoiceoverPanel({ projectId }: { projectId: string }) {
           className="mb-4 w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white placeholder-gray-500 focus:border-brand-500 focus:outline-none"
         />
 
-        <button
-          onClick={handleGenerate}
-          disabled={generating || !scriptText.trim()}
-          className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-        >
-          {generating ? (
-            <>
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-              Generating...
-            </>
-          ) : (
-            <>
-              <Mic className="h-4 w-4" />
-              Generate Voiceover
-            </>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={handleGenerate}
+            disabled={generating || !scriptText.trim()}
+            className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+          >
+            {generating ? (
+              <>
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Mic className="h-4 w-4" />
+                Generate Voiceover
+              </>
+            )}
+          </button>
+          {progressMsg && (
+            <span className="text-xs text-gray-400">{progressMsg}</span>
           )}
-        </button>
+        </div>
+
+        {error && (
+          <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-900/20 px-3 py-2 text-sm text-red-400">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
       </div>
 
       {voiceovers.length === 0 ? (

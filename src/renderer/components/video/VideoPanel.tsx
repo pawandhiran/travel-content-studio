@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiClient } from '../../services/apiClient'
-import { Upload, Play, Trash2, FileVideo } from 'lucide-react'
+import { Upload, Play, Trash2, FileVideo, AlertCircle } from 'lucide-react'
 
 interface Video {
   id: string
@@ -17,13 +17,15 @@ export function VideoPanel({ projectId }: { projectId: string }) {
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState('')
 
   const fetchVideos = async () => {
     try {
       const data = await apiClient.get<{ videos: Video[] }>(`/projects/${projectId}/videos`)
       setVideos(data.videos || [])
-    } catch {
-      // Handle error
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(`Failed to load videos: ${msg}`)
     } finally {
       setLoading(false)
     }
@@ -43,20 +45,27 @@ export function VideoPanel({ projectId }: { projectId: string }) {
       if (filePaths.length === 0) return
 
       setUploading(true)
+      setError('')
       for (const filePath of filePaths) {
         await apiClient.post(`/projects/${projectId}/videos/import`, { file_path: filePath })
       }
       await fetchVideos()
-    } catch {
-      // Handle error
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(`Import failed: ${msg}`)
     } finally {
       setUploading(false)
     }
   }
 
   const handleDelete = async (videoId: string) => {
-    await apiClient.delete(`/videos/${videoId}`)
-    setVideos(videos.filter((v) => v.id !== videoId))
+    try {
+      await apiClient.delete(`/videos/${videoId}`)
+      setVideos(prev => prev.filter((v) => v.id !== videoId))
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(`Delete failed: ${msg}`)
+    }
   }
 
   const formatDuration = (ms: number) => {
@@ -79,6 +88,13 @@ export function VideoPanel({ projectId }: { projectId: string }) {
           {uploading ? 'Importing...' : 'Import Videos'}
         </button>
       </div>
+
+      {error && (
+        <div className="flex items-start gap-2 rounded-lg bg-red-900/20 px-3 py-2 text-sm text-red-400">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
 
       {loading ? (
         <p className="text-gray-500">Loading videos...</p>

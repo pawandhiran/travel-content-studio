@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { apiClient } from '../../services/apiClient'
-import { Bot, Play, CheckCircle, XCircle, Clock, Loader } from 'lucide-react'
+import { Bot, Play, CheckCircle, XCircle, Clock, Loader, AlertCircle } from 'lucide-react'
 
 const agents = [
   { id: 'trip_analyzer', name: 'Trip Analyzer', desc: 'Parse itinerary, extract locations and timeline' },
@@ -20,6 +20,8 @@ export function AgentPanel({ projectId }: { projectId: string }) {
   const [agentStatuses, setAgentStatuses] = useState<Record<string, AgentStatus>>({})
   const [running, setRunning] = useState(false)
   const [context, setContext] = useState('')
+  const [error, setError] = useState('')
+  const [progressMsg, setProgressMsg] = useState('')
 
   const toggleAgent = (id: string) => {
     setSelectedAgents((prev) =>
@@ -27,8 +29,37 @@ export function AgentPanel({ projectId }: { projectId: string }) {
     )
   }
 
+  const pollJob = async (jobId: string): Promise<Record<string, AgentStatus> | null> => {
+    const maxAttempts = 120
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise((r) => setTimeout(r, 2000))
+      try {
+        const status = await apiClient.get<{
+          status: string
+          error?: string
+          message?: string
+          result?: { agent_statuses?: Record<string, AgentStatus> }
+        }>(`/agents/jobs/${jobId}`)
+        if (status.message) setProgressMsg(status.message)
+        if (status.status === 'completed') {
+          return status.result?.agent_statuses || null
+        }
+        if (status.status === 'failed') {
+          setError(status.error || 'Pipeline failed')
+          return null
+        }
+      } catch {
+        // Job may not be registered yet, keep polling
+      }
+    }
+    setError('Pipeline timed out')
+    return null
+  }
+
   const handleRun = async () => {
     setRunning(true)
+    setError('')
+    setProgressMsg('Submitting...')
     const initialStatuses: Record<string, AgentStatus> = {}
     selectedAgents.forEach((id) => {
       initialStatuses[id] = 'running'
@@ -36,17 +67,31 @@ export function AgentPanel({ projectId }: { projectId: string }) {
     setAgentStatuses(initialStatuses)
 
     try {
-      await apiClient.post(`/projects/${projectId}/agents/run`, {
+      const resp = await apiClient.post<{ id: string }>(`/projects/${projectId}/agents/run`, {
         agents: selectedAgents,
         context: context ? { text: context } : {}
       })
 
-      const completedStatuses: Record<string, AgentStatus> = {}
-      selectedAgents.forEach((id) => {
-        completedStatuses[id] = 'completed'
-      })
-      setAgentStatuses(completedStatuses)
-    } catch {
+      if (!resp.id) {
+        setError('No job ID returned')
+        return
+      }
+
+      setProgressMsg('Running agent pipeline...')
+      const result = await pollJob(resp.id)
+      if (result) {
+        setAgentStatuses(result)
+        setProgressMsg('')
+      } else {
+        const finalStatuses: Record<string, AgentStatus> = {}
+        selectedAgents.forEach((id) => {
+          finalStatuses[id] = agentStatuses[id] === 'completed' ? 'completed' : 'failed'
+        })
+        setAgentStatuses(finalStatuses)
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(`Pipeline failed: ${msg}`)
       const failedStatuses: Record<string, AgentStatus> = {}
       selectedAgents.forEach((id) => {
         failedStatuses[id] = 'failed'
@@ -54,6 +99,7 @@ export function AgentPanel({ projectId }: { projectId: string }) {
       setAgentStatuses(failedStatuses)
     } finally {
       setRunning(false)
+      setProgressMsg('')
     }
   }
 
@@ -114,23 +160,35 @@ export function AgentPanel({ projectId }: { projectId: string }) {
           ))}
         </div>
 
-        <button
-          onClick={handleRun}
-          disabled={running || selectedAgents.length === 0}
-          className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-        >
-          {running ? (
-            <>
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-              Running Pipeline...
-            </>
-          ) : (
-            <>
-              <Play className="h-4 w-4" />
-              Run {selectedAgents.length} Agent{selectedAgents.length !== 1 ? 's' : ''}
-            </>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={handleRun}
+            disabled={running || selectedAgents.length === 0}
+            className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+          >
+            {running ? (
+              <>
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                Running Pipeline...
+              </>
+            ) : (
+              <>
+                <Play className="h-4 w-4" />
+                Run {selectedAgents.length} Agent{selectedAgents.length !== 1 ? 's' : ''}
+              </>
+            )}
+          </button>
+          {progressMsg && (
+            <span className="text-xs text-gray-400">{progressMsg}</span>
           )}
-        </button>
+        </div>
+
+        {error && (
+          <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-900/20 px-3 py-2 text-sm text-red-400">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
       </div>
     </div>
   )

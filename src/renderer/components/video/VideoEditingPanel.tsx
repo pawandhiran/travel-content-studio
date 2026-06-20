@@ -12,7 +12,8 @@ import {
   Shield,
   Stamp,
   Image,
-  CheckCircle
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react'
 
 interface Presets {
@@ -47,6 +48,8 @@ export function VideoEditingPanel({ projectId }: { projectId: string }) {
   const [presets, setPresets] = useState<Presets | null>(null)
   const [processing, setProcessing] = useState(false)
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [error, setError] = useState('')
+  const [progressMsg, setProgressMsg] = useState('')
 
   // Tool-specific options
   const [colorPreset, setColorPreset] = useState('cinematic')
@@ -74,20 +77,43 @@ export function VideoEditingPanel({ projectId }: { projectId: string }) {
       if (data.videos?.length > 0 && !selectedVideo) {
         setSelectedVideo(data.videos[0].id)
       }
-    } catch { /* empty */ }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(`Failed to load videos: ${msg}`)
+    }
   }
 
   const fetchPresets = async () => {
     try {
       const data = await apiClient.get<Presets>('/video-editing/presets')
       setPresets(data)
-    } catch { /* empty */ }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(`Failed to load presets: ${msg}`)
+    }
+  }
+
+  const pollJob = async (jobId: string): Promise<Record<string, unknown>> => {
+    for (let i = 0; i < 120; i++) {
+      await new Promise(r => setTimeout(r, 2000))
+      try {
+        const status = await apiClient.get<{ status: string; error?: string; message?: string; result?: Record<string, unknown> }>(`/video-editing/jobs/${jobId}`)
+        if (status.message) setProgressMsg(status.message)
+        if (status.status === 'completed') return status.result || {}
+        if (status.status === 'failed') throw new Error(status.error || 'Processing failed')
+      } catch (e) {
+        if ((e as Error).message?.includes('failed')) throw e
+      }
+    }
+    throw new Error('Processing timed out')
   }
 
   const runTool = async () => {
     if (!selectedVideo || !selectedTool) return
     setProcessing(true)
     setResult(null)
+    setError('')
+    setProgressMsg('Submitting...')
 
     try {
       let endpoint = ''
@@ -141,14 +167,30 @@ export function VideoEditingPanel({ projectId }: { projectId: string }) {
       }
 
       const data = await apiClient.post<Record<string, unknown>>(endpoint, body)
-      setResult({
-        success: true,
-        message: data.job_id ? `Job queued: ${data.job_id}` : 'Completed'
-      })
-    } catch (e) {
-      setResult({ success: false, message: (e as Error).message })
+
+      if (selectedTool === 'quality_check') {
+        const passed = data.passed ?? data.pass
+        const score = data.score ?? data.overall_score
+        setResult({
+          success: !!passed,
+          message: passed ? `Quality check passed (score: ${score})` : `Quality check failed (score: ${score})`
+        })
+      } else if (data.job_id) {
+        setProgressMsg('Processing... this may take a minute')
+        const jobResult = await pollJob(data.job_id as string)
+        setResult({
+          success: true,
+          message: (jobResult.message as string) || `${activeTool?.label} completed successfully`
+        })
+      } else {
+        setResult({ success: true, message: 'Completed' })
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(`Processing failed: ${msg}`)
     } finally {
       setProcessing(false)
+      setProgressMsg('')
     }
   }
 
@@ -314,6 +356,16 @@ export function VideoEditingPanel({ projectId }: { projectId: string }) {
               </>
             )}
           </button>
+          {progressMsg && (
+            <span className="mt-2 block text-xs text-gray-400">{progressMsg}</span>
+          )}
+
+          {error && (
+            <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-900/20 px-3 py-2 text-sm text-red-400">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
 
           {result && (
             <div className={`mt-4 rounded-lg p-3 text-sm ${result.success ? 'bg-emerald-900/30 text-emerald-400' : 'bg-red-900/30 text-red-400'}`}>

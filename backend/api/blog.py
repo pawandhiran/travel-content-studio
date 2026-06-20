@@ -40,7 +40,26 @@ async def generate_blog(
             return {"blog_id": result.id, "title": result.title}
 
     job_id = await task_queue.submit("blog_generation", project_id, _run)
-    return {"id": job_id, "project_id": project_id, "job_type": "blog_generation", "status": "pending"}
+    return {
+        "id": job_id, "project_id": project_id, "job_type": "blog_generation", "status": "pending",
+        "progress": 0, "result_json": None, "error": None, "started_at": None, "completed_at": None,
+    }
+
+
+@router.get("/blog/jobs/{job_id}")
+async def get_blog_job_status(job_id: str):
+    """Get status of a blog job from the in-memory task queue."""
+    status = task_queue.get_status(job_id)
+    if not status:
+        return {"error": "Job not found", "status": "unknown"}
+    return {
+        "id": status["id"],
+        "status": status["status"].value if hasattr(status["status"], "value") else str(status["status"]),
+        "progress": status.get("progress", 0),
+        "message": status.get("message", ""),
+        "error": status.get("error"),
+        "result": status.get("result"),
+    }
 
 
 @router.get("/projects/{project_id}/blogs", response_model=list[BlogResponse])

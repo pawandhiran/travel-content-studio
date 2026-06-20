@@ -38,6 +38,22 @@ async def start_transcription(video_id: str, db: AsyncSession = Depends(get_db))
     return {"id": job_id, "project_id": project_id, "job_type": "transcription", "status": "pending"}
 
 
+@router.get("/transcription/jobs/{job_id}")
+async def get_transcription_job_status(job_id: str):
+    """Get status of a transcription job from the in-memory task queue."""
+    status = task_queue.get_status(job_id)
+    if not status:
+        return {"error": "Job not found", "status": "unknown"}
+    return {
+        "id": status["id"],
+        "status": status["status"].value if hasattr(status["status"], "value") else str(status["status"]),
+        "progress": status.get("progress", 0),
+        "message": status.get("message", ""),
+        "error": status.get("error"),
+        "result": status.get("result"),
+    }
+
+
 @router.get("/videos/{video_id}/transcript", response_model=TranscriptResponse)
 async def get_transcript(video_id: str, db: AsyncSession = Depends(get_db)):
     """Get the transcript for a video."""

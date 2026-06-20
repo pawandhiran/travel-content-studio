@@ -45,7 +45,26 @@ async def run_agents(
             }
 
     job_id = await task_queue.submit("agent_run", project_id, _run)
-    return {"id": job_id, "project_id": project_id, "job_type": "agent_run", "status": "pending"}
+    return {
+        "id": job_id, "project_id": project_id, "job_type": "agent_run", "status": "pending",
+        "progress": 0, "result_json": None, "error": None, "started_at": None, "completed_at": None,
+    }
+
+
+@router.get("/agents/jobs/{job_id}")
+async def get_agent_job_status(job_id: str):
+    """Get status of an agent job from the in-memory task queue."""
+    status = task_queue.get_status(job_id)
+    if not status:
+        return {"error": "Job not found", "status": "unknown"}
+    return {
+        "id": status["id"],
+        "status": status["status"].value if hasattr(status["status"], "value") else str(status["status"]),
+        "progress": status.get("progress", 0),
+        "message": status.get("message", ""),
+        "error": status.get("error"),
+        "result": status.get("result"),
+    }
 
 
 @router.get("/projects/{project_id}/agents/status", response_model=AgentStatusResponse)

@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { apiClient } from '../../services/apiClient'
-import { Sparkles, RefreshCw, Copy, Check } from 'lucide-react'
+import { Sparkles, RefreshCw, Copy, Check, AlertCircle } from 'lucide-react'
 
 const contentTypes = [
   { value: 'title', label: 'Video Title' },
@@ -24,40 +24,89 @@ interface ContentItem {
   created_at: string
 }
 
+interface JobStatus {
+  status: string
+  progress?: number
+  message?: string
+  error?: string
+  result?: Record<string, unknown>
+}
+
 export function ContentPanel({ projectId }: { projectId: string }) {
   const [contents, setContents] = useState<ContentItem[]>([])
   const [selectedType, setSelectedType] = useState('title')
   const [prompt, setPrompt] = useState('')
   const [generating, setGenerating] = useState(false)
+  const [progressMsg, setProgressMsg] = useState('')
+  const [error, setError] = useState('')
   const [copied, setCopied] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchContent()
-  }, [projectId])
-
-  const fetchContent = async () => {
+  const fetchContent = useCallback(async () => {
     try {
       const data = await apiClient.get<{ contents: ContentItem[] }>(
         `/projects/${projectId}/content`
       )
       setContents(data.contents || [])
-    } catch {
-      // Handle error
+    } catch (err: unknown) {
+      console.error('Failed to fetch content:', err)
     }
+  }, [projectId])
+
+  useEffect(() => {
+    fetchContent()
+  }, [fetchContent])
+
+  const pollJob = async (jobId: string): Promise<boolean> => {
+    const maxAttempts = 120
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise((r) => setTimeout(r, 2000))
+      try {
+        const status = await apiClient.get<JobStatus>(`/content/jobs/${jobId}`)
+        if (status.message) {
+          setProgressMsg(status.message)
+        }
+        if (status.status === 'completed') {
+          return true
+        }
+        if (status.status === 'failed') {
+          setError(status.error || 'Generation failed')
+          return false
+        }
+      } catch {
+        // Job may not be registered yet on first poll, keep trying
+      }
+    }
+    setError('Generation timed out')
+    return false
   }
 
   const handleGenerate = async () => {
     setGenerating(true)
+    setError('')
+    setProgressMsg('Submitting...')
     try {
-      await apiClient.post(`/projects/${projectId}/generate`, {
+      const resp = await apiClient.post<{ id: string }>(`/projects/${projectId}/generate`, {
         content_type: selectedType,
         prompt: prompt || undefined
       })
-      await fetchContent()
-    } catch {
-      // Handle error
+
+      if (!resp.id) {
+        setError('No job ID returned')
+        return
+      }
+
+      setProgressMsg('Generating with AI... this may take a minute')
+      const success = await pollJob(resp.id)
+      if (success) {
+        setProgressMsg('')
+        await fetchContent()
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(`Generation failed: ${msg}`)
     } finally {
       setGenerating(false)
+      setProgressMsg('')
     }
   }
 
@@ -97,23 +146,35 @@ export function ContentPanel({ projectId }: { projectId: string }) {
           className="mb-4 w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white placeholder-gray-500 focus:border-brand-500 focus:outline-none"
         />
 
-        <button
-          onClick={handleGenerate}
-          disabled={generating}
-          className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-        >
-          {generating ? (
-            <>
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-              Generating...
-            </>
-          ) : (
-            <>
-              <Sparkles className="h-4 w-4" />
-              Generate {contentTypes.find((ct) => ct.value === selectedType)?.label}
-            </>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+          >
+            {generating ? (
+              <>
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4" />
+                Generate {contentTypes.find((ct) => ct.value === selectedType)?.label}
+              </>
+            )}
+          </button>
+          {progressMsg && (
+            <span className="text-xs text-gray-400">{progressMsg}</span>
           )}
-        </button>
+        </div>
+
+        {error && (
+          <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-900/20 px-3 py-2 text-sm text-red-400">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
       </div>
 
       {/* Generated Content */}

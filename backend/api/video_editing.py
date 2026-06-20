@@ -381,6 +381,22 @@ async def smart_thumbnail(
     return {"job_id": job_id, "status": "queued"}
 
 
+@router.get("/jobs/{job_id}")
+async def get_video_editing_job_status(job_id: str):
+    """Get status of a video editing job from the in-memory task queue."""
+    status = task_queue.get_status(job_id)
+    if not status:
+        return {"error": "Job not found", "status": "unknown"}
+    return {
+        "id": status["id"],
+        "status": status["status"].value if hasattr(status["status"], "value") else str(status["status"]),
+        "progress": status.get("progress", 0),
+        "message": status.get("message", ""),
+        "error": status.get("error"),
+        "result": status.get("result"),
+    }
+
+
 @router.get("/presets")
 async def get_presets():
     """List available presets for all video editing features."""

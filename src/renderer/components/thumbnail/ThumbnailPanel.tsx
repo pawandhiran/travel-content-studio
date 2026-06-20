@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiClient } from '../../services/apiClient'
-import { Image, Sparkles, Download } from 'lucide-react'
+import { Image, Sparkles, Download, AlertCircle } from 'lucide-react'
 
 interface Thumbnail {
   id: string
@@ -24,6 +24,8 @@ export function ThumbnailPanel({ projectId }: { projectId: string }) {
   const [prompt, setPrompt] = useState('')
   const [style, setStyle] = useState('cinematic')
   const [generating, setGenerating] = useState(false)
+  const [error, setError] = useState('')
+  const [progressMsg, setProgressMsg] = useState('')
 
   useEffect(() => {
     fetchThumbnails()
@@ -33,21 +35,56 @@ export function ThumbnailPanel({ projectId }: { projectId: string }) {
     try {
       const data = await apiClient.get<Thumbnail[]>(`/projects/${projectId}/thumbnails`)
       setThumbnails(Array.isArray(data) ? data : [])
-    } catch {
-      // Handle error
+    } catch (err: unknown) {
+      console.error('Failed to fetch thumbnails:', err)
     }
+  }
+
+  const pollJob = async (jobId: string): Promise<boolean> => {
+    const maxAttempts = 120
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise((r) => setTimeout(r, 2000))
+      try {
+        const status = await apiClient.get<{ status: string; error?: string; message?: string }>(`/thumbnails/jobs/${jobId}`)
+        if (status.message) setProgressMsg(status.message)
+        if (status.status === 'completed') return true
+        if (status.status === 'failed') {
+          setError(status.error || 'Generation failed')
+          return false
+        }
+      } catch {
+        // Job may not be registered yet, keep polling
+      }
+    }
+    setError('Generation timed out')
+    return false
   }
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return
     setGenerating(true)
+    setError('')
+    setProgressMsg('Submitting...')
     try {
-      await apiClient.post(`/projects/${projectId}/thumbnails`, { prompt, style })
-      await fetchThumbnails()
-    } catch {
-      // Handle error
+      const resp = await apiClient.post<{ id: string }>(`/projects/${projectId}/thumbnails`, { prompt, style })
+
+      if (!resp.id) {
+        setError('No job ID returned')
+        return
+      }
+
+      setProgressMsg('Generating with AI... this may take a minute')
+      const success = await pollJob(resp.id)
+      if (success) {
+        setProgressMsg('')
+        await fetchThumbnails()
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(`Generation failed: ${msg}`)
     } finally {
       setGenerating(false)
+      setProgressMsg('')
     }
   }
 
@@ -80,23 +117,35 @@ export function ThumbnailPanel({ projectId }: { projectId: string }) {
           ))}
         </div>
 
-        <button
-          onClick={handleGenerate}
-          disabled={generating || !prompt.trim()}
-          className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-        >
-          {generating ? (
-            <>
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-              Generating...
-            </>
-          ) : (
-            <>
-              <Sparkles className="h-4 w-4" />
-              Generate Thumbnail
-            </>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={handleGenerate}
+            disabled={generating || !prompt.trim()}
+            className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+          >
+            {generating ? (
+              <>
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4" />
+                Generate Thumbnail
+              </>
+            )}
+          </button>
+          {progressMsg && (
+            <span className="text-xs text-gray-400">{progressMsg}</span>
           )}
-        </button>
+        </div>
+
+        {error && (
+          <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-900/20 px-3 py-2 text-sm text-red-400">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
       </div>
 
       {thumbnails.length === 0 ? (
