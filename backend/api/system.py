@@ -106,6 +106,27 @@ async def switch_model(
     return {"status": "ok"}
 
 
+@router.post("/models/pull")
+async def pull_model(body: dict):
+    """Pull/download a model via Ollama."""
+    model_name = body.get("model_id", "")
+    if not model_name:
+        return {"error": "No model specified"}
+
+    settings = get_settings()
+    try:
+        async with httpx.AsyncClient(timeout=600) as client:
+            resp = await client.post(
+                f"{settings.ollama_host}/api/pull",
+                json={"name": model_name, "stream": False},
+                timeout=600,
+            )
+            resp.raise_for_status()
+            return {"status": "ok", "model": model_name}
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
 @router.get("/check-update")
 async def check_update():
     """Compare local git HEAD with the latest commit on GitHub main branch."""

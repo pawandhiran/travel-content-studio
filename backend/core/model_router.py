@@ -21,7 +21,7 @@ TASK_MODEL_MAP: dict[str, dict[str, str]] = {
     "medium": {
         "default": "qwen3:14b",
         "tasks": [
-            "script", "narration", "youtube_desc", "social_posts",
+            "chat", "script", "narration", "youtube_desc", "social_posts",
             "seo_description", "reel_script", "youtube_tags",
         ],
     },

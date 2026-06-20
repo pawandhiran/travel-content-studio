@@ -22,6 +22,7 @@ interface SystemState {
   fetchHardware: () => Promise<void>
   fetchModels: () => Promise<void>
   switchModel: (model: string) => Promise<void>
+  pullModel: (modelId: string) => Promise<{ success: boolean; error?: string }>
 }
 
 export const useSystemStore = create<SystemState>((set) => ({
@@ -81,5 +82,18 @@ export const useSystemStore = create<SystemState>((set) => ({
   switchModel: async (model: string) => {
     await apiClient.post('/system/models/switch', { model_id: model })
     set({ activeModel: model })
+  },
+
+  pullModel: async (modelId: string) => {
+    try {
+      const data = await apiClient.post<{ status?: string; error?: string }>(
+        '/system/models/pull',
+        { model_id: modelId }
+      )
+      if (data.error) return { success: false, error: data.error }
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: (err as Error).message }
+    }
   }
 }))

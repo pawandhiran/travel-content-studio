@@ -99,6 +99,18 @@ function toolDisplayName(tool: string): string {
     .join(' ')
 }
 
+function extractReplyText(content: string): string {
+  const trimmed = content.trim()
+  if (!trimmed.startsWith('{')) return content
+  try {
+    const parsed = JSON.parse(trimmed)
+    if (typeof parsed.reply === 'string') return parsed.reply
+  } catch {
+    // not JSON, return as-is
+  }
+  return content
+}
+
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
@@ -612,7 +624,7 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
       const aiMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: response.reply,
+        content: extractReplyText(response.reply),
         actions: response.actions_taken.length > 0 ? response.actions_taken : undefined,
         suggestions: response.suggestions.length > 0 ? response.suggestions : undefined,
         timestamp: new Date()

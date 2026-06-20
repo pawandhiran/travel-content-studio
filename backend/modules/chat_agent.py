@@ -217,7 +217,7 @@ class ChatAgent:
         )
 
         system_prompt = self._build_system_prompt(project_id)
-        model = await self._router.get_model("agent_trip_analyzer")
+        model = await self._router.get_model("chat")
         raw_reply = await self._call_ollama(model, system_prompt, user_content)
         parsed = _extract_json(raw_reply)
 
