@@ -82,29 +82,20 @@ async def export_blog(
     db: AsyncSession = Depends(get_db),
 ):
     """Export a blog in Markdown, HTML, or DOCX format."""
+    from modules.blog_studio import export_blog as do_export
+
     blog = await db.get(Blog, blog_id)
     if not blog:
         raise NotFoundError(f"Blog {blog_id} not found")
 
-    if format == "md":
-        content = f"# {blog.title}\n\n{blog.body}"
-        return Response(
-            content=content,
-            media_type="text/markdown",
-            headers={"Content-Disposition": f'attachment; filename="{blog.title}.md"'},
-        )
-    elif format == "html":
-        content = f"<html><body><h1>{blog.title}</h1><div>{blog.body}</div></body></html>"
-        return Response(
-            content=content,
-            media_type="text/html",
-            headers={"Content-Disposition": f'attachment; filename="{blog.title}.html"'},
-        )
-    else:
-        # DOCX generation would use python-docx in production
-        content = f"{blog.title}\n\n{blog.body}"
-        return Response(
-            content=content.encode(),
-            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            headers={"Content-Disposition": f'attachment; filename="{blog.title}.docx"'},
-        )
+    content_bytes = await do_export(db, blog_id, format)
+    media_types = {
+        "md": "text/markdown",
+        "html": "text/html",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }
+    return Response(
+        content=content_bytes,
+        media_type=media_types.get(format, "application/octet-stream"),
+        headers={"Content-Disposition": f'attachment; filename="{blog.title or "blog"}.{format}"'},
+    )

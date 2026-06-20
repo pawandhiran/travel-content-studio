@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 
 # ---------------------------------------------------------------------------
@@ -261,6 +262,23 @@ class ReelResponse(BaseModel):
     cta: Optional[str]
     captions: Optional[str]
     created_at: datetime
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def shot_list(self) -> list[dict[str, Any]]:
+        """Parse shot_list_json into a typed list, normalizing 'shot' -> 'order'."""
+        try:
+            items = json.loads(self.shot_list_json)
+            return [
+                {
+                    "order": item.get("order") or item.get("shot", i + 1),
+                    "description": item.get("description", ""),
+                    "duration_s": item.get("duration_s", 0),
+                }
+                for i, item in enumerate(items)
+            ]
+        except (json.JSONDecodeError, TypeError):
+            return []
 
 
 # ---------------------------------------------------------------------------

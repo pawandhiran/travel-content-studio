@@ -29,7 +29,7 @@ _SYSTEM_PROMPT = (
     "You are a social media content strategist specializing in travel reels. "
     "Create scroll-stopping content with strong hooks, dynamic pacing, and clear CTAs. "
     "Always respond in valid JSON format with the following keys: "
-    "hook, script, shot_list (array of objects with 'shot', 'duration_s', 'description'), "
+    "hook, script, shot_list (array of objects with 'order', 'duration_s', 'description'), "
     "cta, captions."
 )
 
@@ -53,6 +53,8 @@ async def generate_reel(
     if context:
         project_context.update(context)
 
+    user_context = project_context.get("text", "")
+
     prompt = (
         f"Create a {duration_type} travel reel plan.\n\n"
         f"Duration guidance: {_DURATION_GUIDANCE[duration_type]}\n\n"
@@ -63,8 +65,10 @@ async def generate_reel(
         f"- Total duration: {project_context['total_duration_ms'] / 1000:.0f}s\n\n"
         f"Transcript excerpt:\n{project_context['transcript_text'][:2000]}\n\n"
         f"Scene breakdown:\n{project_context['scenes_summary'][:1000]}\n\n"
-        f"Generate the reel plan as JSON."
     )
+    if user_context:
+        prompt += f"Additional instructions from the user:\n{user_context}\n\n"
+    prompt += "Generate the reel plan as JSON."
 
     try:
         model = await model_router.get_model("reel_script")

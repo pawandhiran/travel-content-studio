@@ -46,7 +46,7 @@ class TripAnalyzerAgent(BaseAgent):
                 "}"
             )
 
-            user_prompt = self._build_user_prompt(project_data)
+            user_prompt = self._build_user_prompt(project_data, context)
             output = await self._generate_json(system_prompt, user_prompt)
 
             for key in ("locations", "activities", "timeline", "key_moments", "summary"):
@@ -95,7 +95,7 @@ class TripAnalyzerAgent(BaseAgent):
 
         return {"transcripts": transcripts, "metadata": metadata, "scenes": scenes}
 
-    def _build_user_prompt(self, data: dict[str, Any]) -> str:
+    def _build_user_prompt(self, data: dict[str, Any], context: dict | None = None) -> str:
         parts = ["Analyze the following travel content and extract trip information.\n"]
 
         if data["transcripts"]:
@@ -107,6 +107,10 @@ class TripAnalyzerAgent(BaseAgent):
 
         if data["scenes"]:
             parts.append(f"## Detected Scenes\n{json.dumps(data['scenes'], indent=2)}\n")
+
+        user_text = (context or {}).get("text", "")
+        if user_text:
+            parts.append(f"## Additional User Instructions\n{user_text}\n")
 
         parts.append(
             "Extract ALL locations mentioned, activities performed, build a chronological "

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { apiClient } from '../../services/apiClient'
 import { Mic, Play, Pause, Download, AlertCircle } from 'lucide-react'
 
@@ -27,6 +27,7 @@ export function VoiceoverPanel({ projectId }: { projectId: string }) {
   const [playing, setPlaying] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [progressMsg, setProgressMsg] = useState('')
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
     fetchVoices()
@@ -108,13 +109,26 @@ export function VoiceoverPanel({ projectId }: { projectId: string }) {
 
   const togglePlay = (id: string) => {
     if (playing === id) {
+      audioRef.current?.pause()
       setPlaying(null)
-    } else {
-      setPlaying(id)
-      const audio = new Audio(`http://127.0.0.1:8420/api/v1/voiceovers/${id}/audio`)
-      audio.onended = () => setPlaying(null)
-      audio.play()
+      return
     }
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current = null
+    }
+    const audio = new Audio(`http://127.0.0.1:8420/api/v1/voiceovers/${id}/audio`)
+    audioRef.current = audio
+    audio.play().catch(() => setError('Failed to play audio'))
+    audio.onended = () => { setPlaying(null); audioRef.current = null }
+    setPlaying(id)
+  }
+
+  const handleDownload = (id: string) => {
+    const a = document.createElement('a')
+    a.href = `http://127.0.0.1:8420/api/v1/voiceovers/${id}/audio`
+    a.download = `voiceover-${id}.wav`
+    a.click()
   }
 
   return (
@@ -206,7 +220,10 @@ export function VoiceoverPanel({ projectId }: { projectId: string }) {
                   {Math.floor(vo.duration_ms / 1000)}s | {vo.format.toUpperCase()}
                 </p>
               </div>
-              <button className="rounded p-2 text-gray-500 hover:bg-gray-800 hover:text-gray-300">
+              <button
+                onClick={() => handleDownload(vo.id)}
+                className="rounded p-2 text-gray-500 hover:bg-gray-800 hover:text-gray-300"
+              >
                 <Download className="h-4 w-4" />
               </button>
             </div>

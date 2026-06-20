@@ -1,7 +1,6 @@
 """Video management endpoints."""
 
 import json
-import shutil
 from pathlib import Path
 from typing import Optional
 
@@ -13,9 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ulid import ULID
 
 from core.database import get_db
-from core.errors import NotFoundError, ValidationError
+from core.errors import NotFoundError, ProcessingError, ValidationError
 from models.db_models import Project, ProjectStatus, Video
 from models.schemas import VideoListResponse, VideoResponse
+from modules import video_ingest
 
 router = APIRouter(tags=["videos"])
 
@@ -29,17 +29,11 @@ async def _extract_metadata(file_path: Path) -> dict:
     from services.ffmpeg_service import get_video_metadata
 
     try:
-        meta = await get_video_metadata(str(file_path))
-        return meta
-    except Exception:
-        return {
-            "format": file_path.suffix.lstrip("."),
-            "duration_ms": 0,
-            "width": 1920,
-            "height": 1080,
-            "fps": 30.0,
-            "codec": "h264",
-        }
+        return await get_video_metadata(str(file_path))
+    except Exception as exc:
+        raise ProcessingError(
+            f"Failed to extract metadata from {file_path.name}: {exc}"
+        ) from exc
 
 
 @router.post(
@@ -101,35 +95,7 @@ async def import_video_by_path(
     if not project or project.status == ProjectStatus.deleted:
         raise NotFoundError(f"Project {project_id} not found")
 
-    source = Path(body.file_path)
-    if not source.exists():
-        raise ValidationError(f"File not found: {body.file_path}")
-
-    video_id = str(ULID())
-    project_folder = Path(project.folder_path)
-    videos_dir = project_folder / "videos"
-    videos_dir.mkdir(parents=True, exist_ok=True)
-
-    dest = videos_dir / f"{video_id}_{source.name}"
-    shutil.copy2(str(source), str(dest))
-
-    meta = await _extract_metadata(dest)
-
-    video = Video(
-        id=video_id,
-        project_id=project_id,
-        filename=source.name,
-        file_path=str(dest),
-        format=meta["format"],
-        duration_ms=meta["duration_ms"],
-        width=meta["width"],
-        height=meta["height"],
-        fps=meta["fps"],
-        codec=meta["codec"],
-        metadata_json=json.dumps(meta),
-    )
-    db.add(video)
-    await db.flush()
+    video = await video_ingest.import_video(db, project_id, body.file_path)
     return video
 
 
@@ -189,13 +155,5 @@ async def get_thumbnail(video_id: str, db: AsyncSession = Depends(get_db)):
 
 @router.delete("/videos/{video_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_video(video_id: str, db: AsyncSession = Depends(get_db)):
-    """Delete a video and its files from disk."""
-    video = await db.get(Video, video_id)
-    if not video:
-        raise NotFoundError(f"Video {video_id} not found")
-
-    file_path = Path(video.file_path)
-    if file_path.exists():
-        file_path.unlink()
-
-    await db.delete(video)
+    """Delete a video and its files (source, proxy, thumbnail) from disk."""
+    await video_ingest.delete_video(db, video_id)

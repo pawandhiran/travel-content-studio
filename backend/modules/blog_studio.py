@@ -63,14 +63,18 @@ async def generate_blog(
     if context:
         project_context.update(context)
 
+    user_context = project_context.get("text", "")
+
     prompt = (
         f"Write a {blog_type.replace('_', ' ')} about this travel project.\n\n"
         f"Project: {project_context['project_name']}\n"
         f"Description: {project_context['project_description']}\n\n"
         f"Transcript from footage:\n{project_context['transcript_text'][:4000]}\n\n"
         f"Scene breakdown:\n{project_context['scenes_summary'][:1000]}\n\n"
-        f"Write the complete {blog_type.replace('_', ' ')} in Markdown format."
     )
+    if user_context:
+        prompt += f"Additional instructions from the user:\n{user_context}\n\n"
+    prompt += f"Write the complete {blog_type.replace('_', ' ')} in Markdown format."
 
     try:
         model = await model_router.get_model("blog")

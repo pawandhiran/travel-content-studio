@@ -147,19 +147,37 @@ async def animated_captions(
     db: AsyncSession = Depends(get_db),
 ):
     """Add TikTok-style animated captions to a video."""
-    video_path = await _get_video_path(db, body["video_id"])
+    video_id = body["video_id"]
+    video_path = await _get_video_path(db, video_id)
     style = body.get("style", "modern")
     animation = body.get("animation", "pop")
 
     async def _run(job_id, update_progress):
+        import json
         from pathlib import Path
-        from modules.animated_captions import add_animated_captions
+
+        from sqlalchemy import select
+
         from config import get_settings
+        from core.database import AsyncSessionLocal
+        from models.db_models import Transcript
+        from modules.animated_captions import add_animated_captions
+
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(Transcript).where(Transcript.video_id == video_id)
+            )
+            transcript = result.scalar_one_or_none()
+            segments = []
+            if transcript and transcript.segments_json:
+                segments = json.loads(transcript.segments_json)
 
         settings = get_settings()
         output = Path(settings.projects_dir) / f"captioned_{job_id}.mp4"
+        await update_progress(10, "Loading video")
         result = await add_animated_captions(
             Path(video_path), output, style=style, animation=animation,
+            transcript_segments=segments,
             progress_callback=_adapt_progress(update_progress),
         )
         return {"output_path": str(output), **result}

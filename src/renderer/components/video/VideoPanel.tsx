@@ -5,6 +5,7 @@ import { Upload, Play, Trash2, FileVideo, AlertCircle } from 'lucide-react'
 interface Video {
   id: string
   filename: string
+  file_path: string
   format: string
   duration_ms: number
   width: number
@@ -119,8 +120,19 @@ export function VideoPanel({ projectId }: { projectId: string }) {
               key={video.id}
               className="group rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden"
             >
-              <div className="relative aspect-video bg-gray-800 flex items-center justify-center">
-                <Play className="h-10 w-10 text-gray-600" />
+              <div className="relative aspect-video bg-gray-800 flex items-center justify-center overflow-hidden">
+                <img
+                  src={`http://127.0.0.1:8420/api/v1/videos/${video.id}/thumbnail`}
+                  alt={video.filename}
+                  className="h-full w-full object-cover"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                />
+                <button
+                  onClick={() => window.api.openExternal(`file://${video.file_path}`)}
+                  className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 transition-opacity hover:opacity-100"
+                >
+                  <Play className="h-10 w-10 text-white drop-shadow-lg" />
+                </button>
                 <span className="absolute bottom-2 right-2 rounded bg-black/70 px-2 py-0.5 text-xs text-white">
                   {formatDuration(video.duration_ms)}
                 </span>
