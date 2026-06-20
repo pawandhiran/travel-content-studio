@@ -32,9 +32,11 @@ async def enhance_photos(body: dict):
 
     Pass mode='stock_ready' for minimal authentic edits optimized for
     Shutterstock acceptance (no heavy processing, demand-aligned metadata).
+    Pass output_dir to choose where enhanced photos are saved.
     """
     image_paths = body.get("image_paths", [])
     mode = body.get("mode", "standard")
+    custom_output_dir = body.get("output_dir", "")
     if not image_paths:
         return {"error": "No image paths provided"}
 
@@ -42,8 +44,11 @@ async def enhance_photos(body: dict):
         from pathlib import Path
         from modules.stock_photo_studio import process_photos
 
-        settings = get_settings()
-        output_dir = Path(settings.data_dir) / "stock_photos" / job_id
+        if custom_output_dir:
+            output_dir = Path(custom_output_dir)
+        else:
+            output_dir = Path.home() / "Pictures" / "TravelContentStudio" / "StockPhotos"
+
         paths = [Path(p) for p in image_paths]
 
         result = await process_photos(
@@ -55,12 +60,13 @@ async def enhance_photos(body: dict):
             "enhanced": result.enhanced,
             "passed_qc": result.passed_qc,
             "failed_qc": result.failed_qc,
-            "csv_path": str(result.csv_path),
-            "package_path": str(result.package_path),
+            "csv_path": str(result.csv_path.resolve()) if result.csv_path != Path() else "",
+            "package_path": str(result.package_path.resolve()) if result.package_path != Path() else "",
+            "output_dir": str(output_dir.resolve()),
             "photos": [
                 {
-                    "original_path": str(p.original_path),
-                    "enhanced_path": str(p.enhanced_path),
+                    "original_path": str(p.original_path.resolve()) if p.original_path != Path() else "",
+                    "enhanced_path": str(p.enhanced_path.resolve()) if p.enhanced_path != Path() else "",
                     "scene_type": p.scene_type,
                     "quality_score": p.quality_score,
                     "passed_qc": p.passed_qc,
@@ -112,6 +118,49 @@ async def generate_metadata_only(body: dict):
 
     results = await batch_generate_metadata(photos)
     return {"results": results}
+
+
+@router.get("/history")
+async def list_previous_edits(output_dir: str = ""):
+    """List previously enhanced photos from the output directory."""
+    from pathlib import Path
+    import os
+
+    if output_dir:
+        base = Path(output_dir)
+    else:
+        base = Path.home() / "Pictures" / "TravelContentStudio" / "StockPhotos"
+
+    # Also scan the legacy per-job directory
+    legacy_base = Path(get_settings().data_dir) / "stock_photos"
+
+    photos: list[dict] = []
+    seen: set[str] = set()
+
+    for search_dir in [base, legacy_base]:
+        if not search_dir.exists():
+            continue
+        for root, _dirs, files in os.walk(str(search_dir)):
+            for fname in sorted(files):
+                if not fname.lower().endswith((".jpg", ".jpeg", ".png")):
+                    continue
+                full = Path(root) / fname
+                key = str(full)
+                if key in seen:
+                    continue
+                seen.add(key)
+                stat = full.stat()
+                photos.append({
+                    "path": key,
+                    "name": fname,
+                    "size_kb": round(stat.st_size / 1024, 1),
+                    "modified": stat.st_mtime,
+                    "folder": str(Path(root).relative_to(search_dir)) if root != str(search_dir) else "",
+                })
+
+    photos.sort(key=lambda p: p["modified"], reverse=True)
+
+    return {"photos": photos, "total": len(photos)}
 
 
 @router.get("/export/{job_id}")

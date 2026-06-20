@@ -1,18 +1,30 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import {
   Upload,
   Camera,
   Sparkles,
   Download,
   FolderOpen,
+  FolderInput,
   ChevronDown,
   ChevronUp,
   AlertTriangle,
   CheckCircle,
   XCircle,
-  Loader2
+  Loader2,
+  Search,
+  Clock,
+  Trash2
 } from 'lucide-react'
 import { apiClient } from '../../services/apiClient'
+
+interface HistoryPhoto {
+  path: string
+  name: string
+  size_kb: number
+  modified: number
+  folder: string
+}
 
 interface PhotoAnalysis {
   image_path: string
@@ -44,6 +56,7 @@ interface StudioJobResult {
   photos: PhotoResult[]
   csv_path: string
   package_path: string
+  output_dir: string
 }
 
 interface JobStatus {
@@ -79,6 +92,45 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
   const [processing, setProcessing] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [expandedPhoto, setExpandedPhoto] = useState<number | null>(null)
+  const [outputDir, setOutputDir] = useState<string>('')
+  const [historyPhotos, setHistoryPhotos] = useState<HistoryPhoto[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+
+  const fetchHistory = useCallback(async () => {
+    setHistoryLoading(true)
+    try {
+      const params = outputDir ? `?output_dir=${encodeURIComponent(outputDir)}` : ''
+      const data = await apiClient.get<{ photos: HistoryPhoto[]; total: number }>(
+        `/stock-photos/history${params}`
+      )
+      setHistoryPhotos(data.photos)
+    } catch {
+      /* history is optional */
+    } finally {
+      setHistoryLoading(false)
+    }
+  }, [outputDir])
+
+  useEffect(() => {
+    fetchHistory()
+  }, [fetchHistory])
+
+  // Refresh history after a job completes
+  useEffect(() => {
+    if (jobStatus?.status === 'completed') {
+      fetchHistory()
+    }
+  }, [jobStatus?.status, fetchHistory])
+
+  const handleSelectOutputDir = useCallback(async () => {
+    try {
+      // @ts-expect-error -- window.api provided by preload
+      const dir = await window.api.selectDirectory()
+      if (dir) setOutputDir(dir)
+    } catch {
+      /* dialog cancelled or unavailable */
+    }
+  }, [])
 
   const handleSelectFiles = useCallback(async () => {
     try {
@@ -135,16 +187,16 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
     setProcessing(true)
     setJobStatus(null)
     try {
-      const data = await apiClient.post<{ job_id: string }>('/stock-photos/enhance', {
-        image_paths: imagePaths
-      })
+      const body: Record<string, unknown> = { image_paths: imagePaths }
+      if (outputDir) body.output_dir = outputDir
+      const data = await apiClient.post<{ job_id: string }>('/stock-photos/enhance', body)
       setJobId(data.job_id)
       pollJob(data.job_id)
     } catch (err) {
       console.error('Enhancement failed:', err)
       setProcessing(false)
     }
-  }, [imagePaths])
+  }, [imagePaths, outputDir])
 
   const pollJob = useCallback(
     async (id: string) => {
@@ -175,13 +227,15 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
   const results = jobStatus?.result
 
   const handleOpenFolder = useCallback(async () => {
-    if (!results?.package_path) return
-    const folderPath = results.package_path.replace(/\/[^/]+$/, '')
+    const target = results?.package_path || results?.output_dir
+    if (!target) return
+    const folderPath = results?.output_dir || target.replace(/\/[^/]+$/, '')
     try {
       // @ts-expect-error -- window.api provided by preload
-      await window.api.openPath(folderPath)
+      await window.api.openInExplorer(folderPath)
     } catch {
-      window.open(`file://${folderPath}`, '_blank')
+      // @ts-expect-error -- window.api provided by preload
+      await window.api.openExternal(`file://${folderPath}`)
     }
   }, [results])
 
@@ -230,14 +284,19 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
               >
                 <div className="aspect-square overflow-hidden bg-gray-800/50">
                   <img
-                    src={`file://${path}`}
+                    src={`http://127.0.0.1:8420/api/v1/files/local?path=${encodeURIComponent(path)}`}
                     alt={path.split('/').pop() || 'Photo'}
                     className="h-full w-full object-cover"
                     onError={(e) => {
                       e.currentTarget.style.display = 'none'
-                      e.currentTarget.parentElement!.classList.add('flex', 'items-center', 'justify-center')
+                      e.currentTarget.parentElement!.classList.add(
+                        'flex',
+                        'items-center',
+                        'justify-center'
+                      )
                       const icon = document.createElement('div')
-                      icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>'
+                      icon.innerHTML =
+                        '<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>'
                       e.currentTarget.parentElement!.appendChild(icon)
                     }}
                   />
@@ -272,43 +331,73 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
         </div>
       )}
 
-      {/* Action Buttons */}
+      {/* Output Directory Picker + Action Buttons */}
       {imagePaths.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex gap-3">
+        <div className="space-y-4">
+          {/* Output directory */}
+          <div className="flex items-center gap-3 rounded-xl border border-gray-800 bg-gray-900/50 px-4 py-3">
+            <FolderInput className="h-5 w-5 shrink-0 text-gray-400" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-gray-500">Save enhanced photos to</p>
+              <p className="truncate font-mono text-sm text-gray-300">
+                {outputDir || '~/Pictures/TravelContentStudio/StockPhotos (default)'}
+              </p>
+            </div>
+            <button
+              onClick={handleSelectOutputDir}
+              className="shrink-0 rounded-lg border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs font-medium text-gray-300 transition-colors hover:bg-gray-700"
+            >
+              Choose Folder
+            </button>
+          </div>
+
+          {/* Action buttons */}
+          <div className="grid grid-cols-3 gap-3">
             <button
               onClick={handleAnalyze}
               disabled={analyzing || processing}
-              className="flex items-center gap-2 rounded-xl bg-gray-800 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex flex-col items-center gap-1.5 rounded-xl bg-gray-800 px-4 py-3 text-center transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {analyzing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Sparkles className="h-4 w-4" />
-              )}
-              Analyze All
+              <div className="flex items-center gap-2">
+                {analyzing ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-white" />
+                ) : (
+                  <Search className="h-4 w-4 text-white" />
+                )}
+                <span className="text-sm font-medium text-white">Analyze All</span>
+              </div>
+              <span className="text-[11px] leading-tight text-gray-500">
+                Preview scene types and quality issues without editing
+              </span>
             </button>
             <button
               onClick={handleEnhance}
               disabled={analyzing || processing}
-              className="flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex flex-col items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-3 text-center transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {processing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Camera className="h-4 w-4" />
-              )}
-              Enhance & Export
+              <div className="flex items-center gap-2">
+                {processing ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-white" />
+                ) : (
+                  <Camera className="h-4 w-4 text-white" />
+                )}
+                <span className="text-sm font-medium text-white">Enhance & Export</span>
+              </div>
+              <span className="text-[11px] leading-tight text-white/60">
+                Full scene-aware edits + QC + metadata + zip package
+              </span>
             </button>
             <button
               onClick={() => {
                 setProcessing(true)
                 setJobStatus(null)
+                const body: Record<string, unknown> = {
+                  image_paths: imagePaths,
+                  mode: 'stock_ready'
+                }
+                if (outputDir) body.output_dir = outputDir
                 apiClient
-                  .post<{ job_id: string }>('/stock-photos/enhance', {
-                    image_paths: imagePaths,
-                    mode: 'stock_ready'
-                  })
+                  .post<{ job_id: string }>('/stock-photos/enhance', body)
                   .then((data) => {
                     setJobId(data.job_id)
                     pollJob(data.job_id)
@@ -316,21 +405,21 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
                   .catch(() => setProcessing(false))
               }}
               disabled={analyzing || processing}
-              className="flex items-center gap-2 rounded-xl border border-emerald-600/50 bg-emerald-600/10 px-4 py-2.5 text-sm font-medium text-emerald-400 transition-colors hover:bg-emerald-600/20 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex flex-col items-center gap-1.5 rounded-xl border border-emerald-600/50 bg-emerald-600/10 px-4 py-3 text-center transition-colors hover:bg-emerald-600/20 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {processing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <CheckCircle className="h-4 w-4" />
-              )}
-              Stock Ready
+              <div className="flex items-center gap-2">
+                {processing ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
+                ) : (
+                  <CheckCircle className="h-4 w-4 text-emerald-400" />
+                )}
+                <span className="text-sm font-medium text-emerald-400">Stock Ready</span>
+              </div>
+              <span className="text-[11px] leading-tight text-emerald-400/60">
+                Minimal authentic edits optimized for Shutterstock acceptance
+              </span>
             </button>
           </div>
-          <p className="text-xs text-gray-500">
-            <span className="font-medium text-emerald-400">Stock Ready</span> applies minimal,
-            realistic edits optimized for Shutterstock acceptance -- authentic look, no
-            over-processing, with demand-aligned metadata and Shot List keywords.
-          </p>
         </div>
       )}
 
@@ -475,25 +564,27 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
           </div>
 
           {/* Output Path & Actions */}
-          {results.package_path && (
+          {(results.output_dir || results.package_path) && (
             <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
               <p className="mb-2 text-xs font-medium uppercase tracking-wider text-gray-500">
                 Output Location
               </p>
               <p className="mb-3 break-all rounded-lg bg-gray-800/70 px-3 py-2 font-mono text-xs text-gray-300">
-                {results.package_path.replace(/\/[^/]+$/, '')}
+                {results.output_dir || results.package_path.replace(/\/[^/]+$/, '')}
               </p>
               <div className="flex gap-3">
-                <button
-                  onClick={handleDownload}
-                  className="flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-700"
-                >
-                  <Download className="h-4 w-4" />
-                  Download Package
-                </button>
+                {results.package_path && (
+                  <button
+                    onClick={handleDownload}
+                    className="flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-700"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download Package
+                  </button>
+                )}
                 <button
                   onClick={handleOpenFolder}
-                  className="flex items-center gap-2 rounded-xl border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-700"
+                  className="flex items-center gap-2 rounded-xl border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-700"
                 >
                   <FolderOpen className="h-4 w-4" />
                   Open Folder
@@ -501,6 +592,66 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Previous Edits History */}
+      {historyPhotos.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-gray-500" />
+              <h3 className="text-sm font-semibold text-gray-300">
+                Previous Edits
+              </h3>
+              <span className="rounded-full bg-gray-800 px-2 py-0.5 text-xs text-gray-500">
+                {historyPhotos.length}
+              </span>
+            </div>
+            <button
+              onClick={fetchHistory}
+              disabled={historyLoading}
+              className="text-xs text-gray-500 transition-colors hover:text-gray-300"
+            >
+              {historyLoading ? 'Loading...' : 'Refresh'}
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+            {historyPhotos.map((photo) => (
+              <div
+                key={photo.path}
+                onDoubleClick={() => window.api.openExternal(`file://${photo.path}`)}
+                title="Double-click to open in viewer"
+                className="group relative cursor-pointer overflow-hidden rounded-xl border border-gray-800 bg-gray-900/50 transition-colors hover:border-gray-600"
+              >
+                <div className="aspect-square overflow-hidden bg-gray-800/50">
+                  <img
+                    src={`http://127.0.0.1:8420/api/v1/files/local?path=${encodeURIComponent(photo.path)}`}
+                    alt={photo.name}
+                    className="h-full w-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none'
+                    }}
+                  />
+                </div>
+                <div className="space-y-1 p-2">
+                  <p className="truncate text-xs text-gray-400" title={photo.name}>
+                    {photo.name}
+                  </p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-gray-600">
+                      {photo.size_kb > 1024
+                        ? `${(photo.size_kb / 1024).toFixed(1)} MB`
+                        : `${photo.size_kb} KB`}
+                    </span>
+                    <span className="text-[10px] text-gray-600">
+                      {new Date(photo.modified * 1000).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

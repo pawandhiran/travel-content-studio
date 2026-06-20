@@ -21,6 +21,7 @@ from .feedback import router as feedback_router
 from .logs import router as logs_router
 from .video_editing import router as video_editing_router
 from .youtube import router as youtube_router
+from .files import router as files_router
 
 
 def create_api_router() -> APIRouter:
@@ -46,5 +47,6 @@ def create_api_router() -> APIRouter:
     api.include_router(feedback_router)
     api.include_router(logs_router)
     api.include_router(chat_router)
+    api.include_router(files_router)
 
     return api

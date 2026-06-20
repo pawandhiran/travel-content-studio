@@ -137,7 +137,16 @@ async def generate_metadata(
     )
 
     settings = get_settings()
-    model = getattr(settings, "stock_photo_model", "llama3.2")
+    model = settings.stock_photo_model
+
+    try:
+        available = await _ollama.list_models()
+    except Exception:
+        available = []
+
+    if available and model not in available:
+        log.warning("configured_model_missing", model=model, available=available)
+        model = available[0]
 
     try:
         response = await _ollama.generate(

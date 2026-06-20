@@ -70,6 +70,7 @@ VALID_SCENE_TYPES: set[str] = {
     "nature_wildlife",
     "abstract_texture",
     "business_lifestyle",
+    "stock_ready",
 }
 
 STANDARD_RATIOS: list[tuple[int, int]] = [

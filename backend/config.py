@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     comfyui_host: str = "http://localhost:8188"
     gpu_timeout: float = 300
     max_concurrent_jobs: int = 3
+    stock_photo_model: str = "qwen3:14b"
 
     model_config = {"env_prefix": "TCS_", "env_file": ".env", "extra": "ignore"}
 
