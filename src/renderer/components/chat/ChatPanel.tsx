@@ -124,8 +124,12 @@ function extractReplyText(content: string): string {
   try {
     const parsed = JSON.parse(trimmed)
     if (typeof parsed.reply === 'string') return parsed.reply
+    if (typeof parsed.error === 'string') return `Error: ${parsed.error}`
+    if (typeof parsed.message === 'string') return parsed.message
   } catch {
-    // not JSON, return as-is
+    // not JSON -- check if it looks like a JSON-wrapped error string
+    const match = trimmed.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    if (match) return match[1].replace(/\\"/g, '"').replace(/\\n/g, '\n')
   }
   return content
 }

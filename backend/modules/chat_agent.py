@@ -180,14 +180,21 @@ def _build_attachment_context(
 ) -> str:
     parts: list[str] = []
     if images:
+        shown = images[:5]
+        lines = [f"  - {p}" for p in shown]
+        if len(images) > 5:
+            lines.append(f"  ... and {len(images) - 5} more images in the same directory")
         parts.append(
-            f"ATTACHED IMAGES ({len(images)} files) -- use these EXACT paths in tool_calls:\n"
-            + "\n".join(f"  - {p}" for p in images)
+            f"ATTACHED IMAGES ({len(images)} files) -- use the image_paths list in enhance_photos tool:\n"
+            + "\n".join(lines)
         )
     if videos:
+        shown = videos[:3]
+        lines = [f"  - {p}" for p in shown]
+        if len(videos) > 3:
+            lines.append(f"  ... and {len(videos) - 3} more videos")
         parts.append(
-            f"ATTACHED VIDEOS ({len(videos)} files) -- use these EXACT paths in tool_calls:\n"
-            + "\n".join(f"  - {p}" for p in videos)
+            f"ATTACHED VIDEOS ({len(videos)} files):\n" + "\n".join(lines)
         )
     if archives:
         parts.append(f"Archives (already extracted above): {', '.join(archives)}")
@@ -628,6 +635,7 @@ class ChatAgent:
             "messages": messages,
             "stream": False,
             "format": "json",
+            "options": {"num_ctx": 8192},
         }
 
         try:
