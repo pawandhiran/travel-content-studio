@@ -21,9 +21,11 @@ export class OllamaManager {
     }
 
     console.log('[OllamaManager] Starting Ollama...')
+    const env = { ...process.env, OLLAMA_HOST: `127.0.0.1:${OLLAMA_PORT}` }
+    delete env.ELECTRON_RUN_AS_NODE
     this.process = spawn('ollama', ['serve'], {
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, OLLAMA_HOST: `127.0.0.1:${OLLAMA_PORT}` }
+      env
     })
 
     this.process.stdout?.on('data', (data) => {

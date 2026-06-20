@@ -19,11 +19,13 @@ function getBundledBinDir(): string {
 function getSpawnEnv(): NodeJS.ProcessEnv {
   const binDir = getBundledBinDir()
   const sep = isWindows ? ';' : ':'
-  return {
+  const env = {
     ...process.env,
     PYTHONUNBUFFERED: '1',
     PATH: `${binDir}${sep}${process.env.PATH || ''}`
   }
+  delete env.ELECTRON_RUN_AS_NODE
+  return env
 }
 
 export class BackendManager {

@@ -25,10 +25,12 @@ export class ComfyUIManager {
     const comfyPath = this.getComfyUIPath()
     console.log(`[ComfyUIManager] Starting ComfyUI from: ${comfyPath}`)
 
+    const env = { ...process.env, PYTHONUNBUFFERED: '1' }
+    delete env.ELECTRON_RUN_AS_NODE
     this.process = spawn(pythonCmd, ['-m', 'comfyui', '--listen', '127.0.0.1', '--port', String(COMFYUI_PORT)], {
       cwd: comfyPath,
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, PYTHONUNBUFFERED: '1' }
+      env
     })
 
     this.process.stdout?.on('data', (data) => {

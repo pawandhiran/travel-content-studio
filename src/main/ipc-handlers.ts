@@ -190,7 +190,9 @@ export function setupIpcHandlers(
   ipcMain.handle('download-model', async (event, modelName: string) => {
     try {
       const ollamaCmd = isWindows ? 'ollama.exe' : 'ollama'
-      const child = spawn(ollamaCmd, ['pull', modelName], { stdio: ['pipe', 'pipe', 'pipe'] })
+      const env = { ...process.env }
+      delete env.ELECTRON_RUN_AS_NODE
+      const child = spawn(ollamaCmd, ['pull', modelName], { stdio: ['pipe', 'pipe', 'pipe'], env })
 
       let lastPercent = 0
       child.stderr?.on('data', (data: Buffer) => {

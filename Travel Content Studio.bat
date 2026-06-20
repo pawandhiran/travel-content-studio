@@ -2,6 +2,9 @@
 title Travel Content Studio
 cd /d "%~dp0"
 
+:: Electron must NOT run as a plain Node.js process
+set ELECTRON_RUN_AS_NODE=
+
 echo Starting Travel Content Studio...
 echo.
 

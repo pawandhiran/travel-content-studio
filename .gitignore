@@ -33,6 +33,6 @@ Thumbs.db
 *.log
 logs/
 
-# macOS app launcher (local only)
-*.app/
-*.command
+# macOS app launcher (track the .app bundle and .command)
+!Travel Content Studio.app/
+Travel Content Studio.app/Contents/MacOS/.launcher.log

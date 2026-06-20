@@ -1,0 +1,56 @@
+#!/bin/bash
+# Travel Content Studio — macOS App Launcher
+
+PROJECT_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+LOG_FILE="$PROJECT_DIR/.launcher.log"
+
+export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+
+# Electron must NOT run as a plain Node.js process
+unset ELECTRON_RUN_AS_NODE
+
+log() { echo "[$(date '+%H:%M:%S')] $*" >> "$LOG_FILE"; }
+
+: > "$LOG_FILE"
+log "Launching Travel Content Studio from $PROJECT_DIR"
+
+cd "$PROJECT_DIR" 2>/dev/null || {
+  osascript -e "display dialog \"Could not find project directory:\n$PROJECT_DIR\" with title \"Travel Content Studio\" buttons {\"OK\"} default button 1 with icon stop"
+  exit 1
+}
+
+# --- Node dependencies ---
+if [ ! -d "node_modules" ]; then
+  log "Installing Node dependencies (first run)..."
+  osascript -e 'display notification "Installing dependencies... This may take a minute." with title "Travel Content Studio"'
+  npm install --legacy-peer-deps >> "$LOG_FILE" 2>&1
+fi
+
+# --- Python backend venv ---
+if [ ! -d "backend/.venv" ]; then
+  log "Creating Python virtual environment..."
+  python3 -m venv backend/.venv >> "$LOG_FILE" 2>&1
+  backend/.venv/bin/pip install -e "backend/[dev]" >> "$LOG_FILE" 2>&1 || log "Warning: pip install had issues"
+fi
+
+# --- Start Ollama if not running ---
+if command -v ollama &>/dev/null; then
+  if ! curl -s http://localhost:11434/api/tags &>/dev/null; then
+    log "Starting Ollama..."
+    ollama serve >> "$LOG_FILE" 2>&1 &
+    sleep 3
+  else
+    log "Ollama already running"
+  fi
+fi
+
+# --- Build Electron if needed ---
+if [ ! -d "out" ]; then
+  log "Building Electron app (first run)..."
+  osascript -e 'display notification "Building app... Almost ready." with title "Travel Content Studio"'
+  npm run build >> "$LOG_FILE" 2>&1
+fi
+
+# --- Launch the Electron app (FOREGROUND -- keeps .app alive) ---
+log "Starting Travel Content Studio..."
+exec npm run dev >> "$LOG_FILE" 2>&1
