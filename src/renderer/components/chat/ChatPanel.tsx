@@ -563,6 +563,7 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
   const [sending, setSending] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [showPalette, setShowPalette] = useState(false)
+  const [activeModel, setActiveModel] = useState<string>('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -573,6 +574,32 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
   useEffect(() => {
     scrollToBottom()
   }, [messages, scrollToBottom])
+
+  // Load chat history on mount
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const data = await apiClient.get<{ messages: Array<{ role: string; content: string; timestamp: string; metadata?: Record<string, unknown> }> }>('/chat/history')
+        if (data.messages && data.messages.length > 0) {
+          const loaded: ChatMessage[] = data.messages.map((m, i) => ({
+            id: `history-${i}`,
+            role: m.role as 'user' | 'assistant',
+            content: m.role === 'assistant' ? extractReplyText(m.content) : m.content,
+            timestamp: new Date(m.timestamp),
+          }))
+          setMessages(loaded)
+        }
+      } catch { /* history load is optional */ }
+    }
+    loadHistory()
+  }, [projectId])
+
+  // Fetch active model for display
+  useEffect(() => {
+    apiClient.get<{ active_model: string | null }>('/system/models')
+      .then(data => setActiveModel(data.active_model || 'qwen3:14b'))
+      .catch(() => {})
+  }, [])
 
   // Show / hide slash command palette
   useEffect(() => {
@@ -677,18 +704,33 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
           <div className="flex items-center gap-2">
             <Bot className="h-4 w-4 text-brand-400" />
             <span className="text-sm font-medium text-white">AI Assistant</span>
+            {activeModel && (
+              <span className="text-xs text-gray-500">using {activeModel}</span>
+            )}
           </div>
-          <button
-            onClick={() => setSettingsOpen(!settingsOpen)}
-            className={`rounded-lg p-1.5 transition-colors ${
-              settingsOpen
-                ? 'bg-brand-600/20 text-brand-400'
-                : 'text-gray-500 hover:bg-gray-800 hover:text-gray-300'
-            }`}
-            title="Chat settings"
-          >
-            <Settings className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => {
+                setMessages([])
+                apiClient.delete('/chat/history').catch(() => {})
+              }}
+              className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-800 hover:text-gray-300"
+              title="New chat"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setSettingsOpen(!settingsOpen)}
+              className={`rounded-lg p-1.5 transition-colors ${
+                settingsOpen
+                  ? 'bg-brand-600/20 text-brand-400'
+                  : 'text-gray-500 hover:bg-gray-800 hover:text-gray-300'
+              }`}
+              title="Chat settings"
+            >
+              <Settings className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* Messages area */}

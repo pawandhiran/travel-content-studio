@@ -291,7 +291,12 @@ const RECOMMENDED_MODELS = [
   { id: 'qwen3:14b', name: 'Qwen3 14B', size: '9 GB', specialty: 'Best balance of speed and quality' },
   { id: 'qwen3:32b', name: 'Qwen3 32B', size: '20 GB', specialty: 'Highest quality blogs, scripts, stories' },
   { id: 'gemma3:12b', name: 'Gemma3 12B', size: '8 GB', specialty: 'Scene analysis, fact-checking, SEO' },
-  { id: 'llava:13b', name: 'LLaVA 13B', size: '8 GB', specialty: 'Vision: photo analysis, thumbnails' }
+  { id: 'llava:13b', name: 'LLaVA 13B', size: '8 GB', specialty: 'Vision: photo analysis, thumbnails' },
+  { id: 'mistral:7b', name: 'Mistral 7B', size: '4 GB', specialty: 'Fast general-purpose, great for chat' },
+  { id: 'codellama:13b', name: 'Code Llama 13B', size: '7 GB', specialty: 'Code generation and technical writing' },
+  { id: 'phi3:14b', name: 'Phi-3 14B', size: '8 GB', specialty: 'Compact but powerful reasoning' },
+  { id: 'llama3.2:3b', name: 'Llama 3.2 3B', size: '2 GB', specialty: 'Ultra-fast, lightweight tasks' },
+  { id: 'deepseek-r1:14b', name: 'DeepSeek R1 14B', size: '9 GB', specialty: 'Advanced reasoning and analysis' }
 ]
 
 function ModelManagementCard({
@@ -309,6 +314,8 @@ function ModelManagementCard({
   downloadingModel: string | null
   downloadResult: { model: string; success: boolean; message: string } | null
 }) {
+  const [customModel, setCustomModel] = useState('')
+
   return (
     <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
       <div className="flex items-center gap-3 mb-4">
@@ -416,6 +423,33 @@ function ModelManagementCard({
               </div>
             )
           })}
+        </div>
+
+        <div className="mt-3 flex gap-2">
+          <input
+            type="text"
+            value={customModel}
+            onChange={(e) => setCustomModel(e.target.value)}
+            placeholder="Or type any model name (e.g. falcon:7b)"
+            className="flex-1 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-brand-500 focus:outline-none"
+          />
+          <button
+            onClick={() => { if (customModel.trim()) onDownloadModel(customModel.trim()) }}
+            disabled={!customModel.trim() || !!downloadingModel}
+            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+          >
+            Download
+          </button>
+        </div>
+
+        <div className="mt-4 text-center">
+          <a
+            href="#"
+            onClick={(e) => { e.preventDefault(); window.api.openExternal('https://ollama.com/library') }}
+            className="text-sm text-brand-400 hover:text-brand-300"
+          >
+            Browse 1000+ more models on Ollama Library &rarr;
+          </a>
         </div>
       </div>
     </div>

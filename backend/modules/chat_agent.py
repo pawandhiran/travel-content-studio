@@ -217,7 +217,20 @@ class ChatAgent:
         )
 
         system_prompt = self._build_system_prompt(project_id)
-        model = await self._router.get_model("chat")
+
+        # Check if user has selected a specific model on the dashboard
+        from core.database import AsyncSessionLocal
+        from models.db_models import Setting
+        active_model = None
+        try:
+            async with AsyncSessionLocal() as session:
+                setting = await session.get(Setting, "active_model")
+                if setting and setting.value:
+                    active_model = setting.value
+        except Exception:
+            pass
+
+        model = active_model or await self._router.get_model("chat")
         raw_reply = await self._call_ollama(model, system_prompt, user_content)
         parsed = _extract_json(raw_reply)
 
