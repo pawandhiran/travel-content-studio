@@ -45,6 +45,12 @@ If the user uploads a photo, suggest stock photo enhancement or thumbnail creati
 If the user uploads a video, suggest transcription, editing, or content generation.
 If unsure, ask clarifying questions.
 
+IMPORTANT RULES:
+- When the user attaches files, the EXACT file paths are listed below. Use those exact paths in your tool_calls.
+- Do NOT make up project IDs. If no project exists yet, use create_project first.
+- For enhance_photos, pass the actual image file paths as a list in "image_paths".
+- Only call tools that are relevant to what the user asked. Do not call every tool.
+
 {rules_injection}
 
 {style_injection}
@@ -144,14 +150,20 @@ def _build_attachment_context(
 ) -> str:
     parts: list[str] = []
     if images:
-        parts.append(f"The user attached {len(images)} image(s): {', '.join(images)}")
+        parts.append(
+            f"ATTACHED IMAGES ({len(images)} files) -- use these EXACT paths in tool_calls:\n"
+            + "\n".join(f"  - {p}" for p in images)
+        )
     if videos:
-        parts.append(f"The user attached {len(videos)} video(s): {', '.join(videos)}")
+        parts.append(
+            f"ATTACHED VIDEOS ({len(videos)} files) -- use these EXACT paths in tool_calls:\n"
+            + "\n".join(f"  - {p}" for p in videos)
+        )
     if archives:
-        parts.append(f"The user attached {len(archives)} archive(s): {', '.join(archives)}")
+        parts.append(f"Archives (already extracted above): {', '.join(archives)}")
     if other:
-        parts.append(f"The user also attached: {', '.join(other)}")
-    return "\n".join(parts)
+        parts.append(f"Other files: {', '.join(other)}")
+    return "\n\n".join(parts)
 
 
 def _classify_intent(message: str) -> str:
@@ -329,12 +341,16 @@ class ChatAgent:
 
         # Execute multiple tool calls in parallel (multi-agent)
         if len(tool_calls) > 1:
-            actions_taken = await self._run_tools_parallel(tool_calls, project_id)
+            actions_taken = await self._run_tools_parallel(
+                tool_calls, project_id, images, videos
+            )
         else:
             for tc in tool_calls:
                 tool_name = tc.get("tool", "")
                 args = tc.get("args", {})
-                result = await self._execute_tool(tool_name, args, project_id)
+                result = await self._execute_tool(
+                    tool_name, args, project_id, images, videos
+                )
                 actions_taken.append(
                     {"tool": tool_name, "args": args, "result": result}
                 )
@@ -467,13 +483,19 @@ class ChatAgent:
         return None
 
     async def _run_tools_parallel(
-        self, tool_calls: list[dict], project_id: str | None
+        self,
+        tool_calls: list[dict],
+        project_id: str | None,
+        attached_images: list[str] | None = None,
+        attached_videos: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Execute multiple tool calls concurrently (multi-agent pattern)."""
         async def _run_one(tc: dict) -> dict[str, Any]:
             tool_name = tc.get("tool", "")
             args = tc.get("args", {})
-            result = await self._execute_tool(tool_name, args, project_id)
+            result = await self._execute_tool(
+                tool_name, args, project_id, attached_images, attached_videos
+            )
             return {"tool": tool_name, "args": args, "result": result}
 
         results = await asyncio.gather(
@@ -555,6 +577,8 @@ class ChatAgent:
         tool_name: str,
         args: dict[str, Any],
         project_id: Optional[str],
+        attached_images: list[str] | None = None,
+        attached_videos: list[str] | None = None,
     ) -> dict[str, Any]:
         endpoint = TOOL_REGISTRY.get(tool_name)
         if not endpoint:
@@ -562,6 +586,17 @@ class ChatAgent:
 
         if project_id and "project_id" not in args:
             args["project_id"] = project_id
+
+        # Fix hallucinated paths: inject real attachment paths
+        if tool_name == "enhance_photos" and attached_images:
+            img_paths = args.get("image_paths", [])
+            if isinstance(img_paths, str) or not img_paths:
+                args["image_paths"] = attached_images
+        if tool_name == "import_video" and attached_videos:
+            fp = args.get("file_path", "")
+            if not fp or not Path(fp).exists():
+                if attached_videos:
+                    args["file_path"] = attached_videos[0]
 
         base = f"http://127.0.0.1:{self._settings.api_port}/api/v1"
         url = f"{base}{endpoint}"

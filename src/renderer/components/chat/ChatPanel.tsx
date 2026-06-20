@@ -160,45 +160,50 @@ function AttachmentPreview({ path, onRemove, isDir }: { path: string; onRemove: 
   )
 }
 
-function ActionCard({ action }: { action: ActionTaken }) {
+function ActionChip({ action }: { action: ActionTaken }) {
   const [expanded, setExpanded] = useState(false)
   const success = action.result.status === 'success'
 
   return (
-    <div
-      className={`rounded-lg border ${
-        success ? 'border-emerald-800/50 bg-emerald-950/30' : 'border-red-800/50 bg-red-950/30'
-      } overflow-hidden`}
-    >
+    <div className="relative inline-block">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm"
+        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors ${
+          success
+            ? 'bg-emerald-950/40 text-emerald-400 hover:bg-emerald-950/60'
+            : 'bg-red-950/40 text-red-400 hover:bg-red-950/60'
+        }`}
+        title={`${toolDisplayName(action.tool)} - click for details`}
       >
-        <Sparkles
-          className={`h-3.5 w-3.5 ${success ? 'text-emerald-400' : 'text-red-400'}`}
-        />
-        <span className={success ? 'text-emerald-300' : 'text-red-300'}>
-          {toolDisplayName(action.tool)}
-        </span>
-        <span className="ml-auto text-gray-500">
-          {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-        </span>
+        <Sparkles className="h-2.5 w-2.5" />
+        {toolDisplayName(action.tool)}
+        {success ? <Check className="h-2.5 w-2.5" /> : <X className="h-2.5 w-2.5" />}
       </button>
       {expanded && (
-        <div className="border-t border-gray-800 px-3 py-2 text-xs text-gray-400">
-          <p className="font-medium text-gray-500">Arguments:</p>
-          <pre className="mt-1 overflow-x-auto whitespace-pre-wrap">
-            {JSON.stringify(action.args, null, 2)}
-          </pre>
-          {action.result.data && (
-            <>
-              <p className="mt-2 font-medium text-gray-500">Result:</p>
-              <pre className="mt-1 overflow-x-auto whitespace-pre-wrap">
-                {JSON.stringify(action.result.data, null, 2).slice(0, 500)}
-              </pre>
-            </>
-          )}
-          {action.result.detail && <p className="mt-2 text-red-400">{action.result.detail}</p>}
+        <div className="absolute left-0 top-full z-20 mt-1 w-80 overflow-hidden rounded-lg border border-gray-700 bg-gray-900 shadow-xl">
+          <div className="flex items-center justify-between border-b border-gray-700 px-3 py-1.5">
+            <span className={`text-xs font-medium ${success ? 'text-emerald-400' : 'text-red-400'}`}>
+              {toolDisplayName(action.tool)}
+            </span>
+            <button onClick={() => setExpanded(false)} className="text-gray-500 hover:text-gray-300">
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+          <div className="max-h-60 overflow-y-auto px-3 py-2 text-xs text-gray-400">
+            <p className="font-medium text-gray-500">Arguments:</p>
+            <pre className="mt-1 overflow-x-auto whitespace-pre-wrap">
+              {JSON.stringify(action.args, null, 2)}
+            </pre>
+            {action.result.data && (
+              <>
+                <p className="mt-2 font-medium text-gray-500">Result:</p>
+                <pre className="mt-1 overflow-x-auto whitespace-pre-wrap">
+                  {JSON.stringify(action.result.data, null, 2).slice(0, 500)}
+                </pre>
+              </>
+            )}
+            {action.result.detail && <p className="mt-2 text-red-400">{action.result.detail}</p>}
+          </div>
         </div>
       )}
     </div>
@@ -900,13 +905,9 @@ export function ChatPanel({ projectId }: { projectId?: string }) {
                     )}
 
                     {msg.actions && msg.actions.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
-                          <Cpu className="h-3 w-3" />
-                          <span>{msg.actions.length} agent{msg.actions.length > 1 ? 's' : ''} executed{msg.actions.length > 1 ? ' in parallel' : ''}</span>
-                        </div>
+                      <div className="flex flex-wrap items-center gap-1.5">
                         {msg.actions.map((action, i) => (
-                          <ActionCard key={i} action={action} />
+                          <ActionChip key={i} action={action} />
                         ))}
                       </div>
                     )}
