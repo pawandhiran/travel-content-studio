@@ -307,7 +307,7 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
           {imagePaths.map((path, idx) => {
             const analysis = analyses.find((a) => a.image_path === path)
             const photoResult = results?.photos.find((p) => p.original_path === path)
-            const score = photoResult?.quality_score ?? analysis?.confidence
+            const score = photoResult?.quality_score ?? (analysis?.confidence != null ? analysis.confidence * 10 : undefined)
             const sceneType = photoResult?.scene_type ?? analysis?.scene_type
             const issues = photoResult?.issues ?? analysis?.issues ?? []
 
@@ -436,7 +436,7 @@ export function StockPhotoPanel({ projectId }: { projectId: string }) {
                     setJobId(data.job_id)
                     pollJob(data.job_id)
                   })
-                  .catch(() => setProcessing(false))
+                  .catch((err) => { setError(err.message || 'Stock Ready processing failed'); setProcessing(false) })
               }}
               disabled={analyzing || processing}
               className="flex flex-col items-center gap-1.5 rounded-xl border border-emerald-600/50 bg-emerald-600/10 px-4 py-3 text-center transition-colors hover:bg-emerald-600/20 disabled:cursor-not-allowed disabled:opacity-50"

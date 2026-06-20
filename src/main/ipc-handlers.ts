@@ -98,8 +98,12 @@ export function setupIpcHandlers(
   })
 
   ipcMain.handle('open-external', async (_, url: string) => {
+    if (/^file:\/\//i.test(url)) {
+      const localPath = decodeURI(url.replace(/^file:\/\//i, ''))
+      return shell.openPath(localPath)
+    }
     if (!/^https?:\/\//i.test(url)) {
-      throw new Error('Only http and https URLs are allowed')
+      throw new Error('Only http, https, and file URLs are allowed')
     }
     shell.openExternal(url)
   })

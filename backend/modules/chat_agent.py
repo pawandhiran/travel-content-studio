@@ -27,15 +27,15 @@ You have access to these tools:
 - create_project(name, description) - Create a new project
 - import_video(project_id, file_path) - Import a video file
 - transcribe(video_id) - Transcribe video audio
-- generate_content(project_id, type, prompt) - Generate title/script/blog/etc
+- generate_content(project_id, content_type, prompt) - Generate title/script/blog/etc
 - color_grade(video_id, preset) - Apply color grading
-- auto_reframe(video_id, aspect) - Smart crop video
+- auto_reframe(video_id, target_aspect) - Smart crop video
 - add_captions(video_id, style) - Add animated captions
 - enhance_audio(video_id, preset) - Enhance audio
 - smart_stitch(video_ids, duration) - Combine clips
 - generate_thumbnail(project_id, prompt) - AI thumbnail
-- generate_voiceover(project_id, text, voice) - TTS narration
-- generate_blog(project_id, type, context) - Write blog post
+- generate_voiceover(project_id, script_text, voice_id) - TTS narration
+- generate_blog(project_id, blog_type, context) - Write blog post
 - enhance_photos(image_paths, mode) - Enhance for Shutterstock
 - quality_check(video_id, platform) - Pre-publish QC
 - run_agents(project_id, agents) - Run travel agent pipeline
@@ -228,8 +228,8 @@ def _extract_json(text: str) -> dict[str, Any]:
 TOOL_REGISTRY: dict[str, str] = {
     "create_project": "/projects",
     "import_video": "/videos/import",
-    "transcribe": "/transcription",
-    "generate_content": "/content",
+    "transcribe": "/transcribe",
+    "generate_content": "/generate",
     "color_grade": "/video-editing/color-grade",
     "auto_reframe": "/video-editing/auto-reframe",
     "add_captions": "/video-editing/animated-captions",
@@ -240,13 +240,40 @@ TOOL_REGISTRY: dict[str, str] = {
     "generate_blog": "/blog",
     "enhance_photos": "/stock-photos/enhance",
     "quality_check": "/video-editing/quality-check",
-    "run_agents": "/agents",
+    "run_agents": "/agents/run",
 }
 
 PROJECT_SCOPED_TOOLS = {
-    "import_video", "transcribe", "generate_content", "generate_thumbnail",
+    "import_video", "generate_content", "generate_thumbnail",
     "generate_voiceover", "generate_blog", "run_agents",
 }
+
+TOOL_DEPENDENCIES: dict[str, set[str]] = {
+    "import_video": {"create_project"},
+    "transcribe": {"import_video"},
+    "generate_content": {"create_project"},
+    "generate_thumbnail": {"create_project"},
+    "generate_voiceover": {"create_project"},
+    "generate_blog": {"create_project"},
+    "run_agents": {"create_project"},
+    "color_grade": {"import_video"},
+    "auto_reframe": {"import_video"},
+    "add_captions": {"import_video"},
+    "enhance_audio": {"import_video"},
+    "smart_stitch": {"import_video"},
+    "quality_check": {"import_video"},
+}
+
+
+def _has_dependency_conflict(tool_calls: list[dict]) -> bool:
+    """Return True if any tool in the list depends on another tool also in the list."""
+    tool_names = {tc.get("tool", "") for tc in tool_calls}
+    for name in tool_names:
+        deps = TOOL_DEPENDENCIES.get(name, set())
+        if deps & tool_names:
+            return True
+    return False
+
 
 # Slash-command patterns detected before sending to the LLM
 _REMEMBER_RE = re.compile(
@@ -286,12 +313,11 @@ class ChatAgent:
     def _build_system_prompt(self, project_id: str | None) -> str:
         rules_injection = self.rules.get_rules_prompt_injection()
         style_injection = feedback_engine.get_style_prompt_injection()
-        memory_context = self.memory.get_context_summary(project_id)
         skills_summary = self.rules.get_skills_summary()
         return SYSTEM_PROMPT.format(
             rules_injection=rules_injection,
             style_injection=style_injection,
-            memory_context=memory_context,
+            memory_context="",
             skills_summary=skills_summary,
         )
 
@@ -324,12 +350,8 @@ class ChatAgent:
 
         system_prompt = self._build_system_prompt(project_id)
 
-        self.memory.add_message(
-            project_id, "user", message,
-            metadata={"attachments": expanded} if expanded else None,
-        )
-
-        # Build multi-turn message history for proper conversation context
+        # Build multi-turn message history BEFORE saving the current user message
+        # to avoid duplicating it in the history
         history_messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
         recent_history = self.memory.get_recent_messages(project_id, limit=10)
         for hist_msg in recent_history:
@@ -338,6 +360,12 @@ class ChatAgent:
             if role in ("user", "assistant") and content:
                 history_messages.append({"role": role, "content": content})
         history_messages.append({"role": "user", "content": user_content})
+
+        # Save user message to memory AFTER building history to avoid duplication
+        self.memory.add_message(
+            project_id, "user", message,
+            metadata={"attachments": expanded} if expanded else None,
+        )
 
         # Dynamic model selection: classify intent, then pick the best model
         intent = _classify_intent(message)
@@ -380,8 +408,8 @@ class ChatAgent:
         actions_taken: list[dict[str, Any]] = []
         suggestions: list[str] = []
 
-        # Execute multiple tool calls in parallel (multi-agent)
-        if len(tool_calls) > 1:
+        # Execute tool calls: parallel when safe, sequential when dependencies exist
+        if len(tool_calls) > 1 and not _has_dependency_conflict(tool_calls):
             actions_taken = await self._run_tools_parallel(
                 tool_calls, project_id, images, videos
             )
@@ -645,7 +673,10 @@ class ChatAgent:
                     args["file_path"] = attached_videos[0]
 
         base = f"http://127.0.0.1:{self._settings.api_port}/api/v1"
-        if tool_name in PROJECT_SCOPED_TOOLS and project_id:
+        if tool_name == "transcribe":
+            video_id = args.get("video_id", "")
+            url = f"{base}/videos/{video_id}/transcribe"
+        elif tool_name in PROJECT_SCOPED_TOOLS and project_id:
             url = f"{base}/projects/{project_id}{endpoint}"
         else:
             url = f"{base}{endpoint}"

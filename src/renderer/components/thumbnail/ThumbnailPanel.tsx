@@ -178,7 +178,7 @@ export function ThumbnailPanel({ projectId }: { projectId: string }) {
                 <button
                   onClick={() => {
                     const link = document.createElement('a')
-                    link.href = `http://127.0.0.1:8420/api/v1/thumbnails/${thumb.id}/image`
+                    link.href = `${BASE_URL}/thumbnails/${thumb.id}/image`
                     link.download = `thumbnail-${thumb.id}.png`
                     document.body.appendChild(link)
                     link.click()
