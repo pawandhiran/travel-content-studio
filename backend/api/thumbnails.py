@@ -42,7 +42,10 @@ async def generate_thumbnail(
             return {"id": result.id}
 
     job_id = await task_queue.submit("thumbnail_generation", project_id, _run)
-    return {"id": job_id, "project_id": project_id, "job_type": "thumbnail_generation", "status": "pending"}
+    return {
+        "id": job_id, "project_id": project_id, "job_type": "thumbnail_generation", "status": "pending",
+        "progress": 0, "result_json": None, "error": None, "started_at": None, "completed_at": None,
+    }
 
 
 @router.get("/thumbnails/jobs/{job_id}")

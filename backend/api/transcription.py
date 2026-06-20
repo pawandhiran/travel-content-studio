@@ -35,7 +35,10 @@ async def start_transcription(video_id: str, db: AsyncSession = Depends(get_db))
             return {"transcript_id": result.id, "video_id": video_id}
 
     job_id = await task_queue.submit("transcription", project_id, _run)
-    return {"id": job_id, "project_id": project_id, "job_type": "transcription", "status": "pending"}
+    return {
+        "id": job_id, "project_id": project_id, "job_type": "transcription", "status": "pending",
+        "progress": 0, "result_json": None, "error": None, "started_at": None, "completed_at": None,
+    }
 
 
 @router.get("/transcription/jobs/{job_id}")

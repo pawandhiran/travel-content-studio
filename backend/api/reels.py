@@ -25,21 +25,26 @@ async def generate_reel(
         raise NotFoundError(f"Project {project_id} not found")
 
     duration_type = body.duration_type
-    context = body.context
+    context_raw = body.context
 
     async def _run(job_id, update_progress):
         from core.database import AsyncSessionLocal
         from modules.reel_generator import generate_reel as do_generate
 
+        ctx = {"text": context_raw} if context_raw else None
+
         async with AsyncSessionLocal() as session:
             await update_progress(0, "Starting reel generation")
-            result = await do_generate(session, project_id, duration_type, context)
+            result = await do_generate(session, project_id, duration_type, ctx)
             await session.commit()
             await update_progress(100, "Reel generation complete")
             return {"id": result.id}
 
     job_id = await task_queue.submit("reel_generation", project_id, _run)
-    return {"id": job_id, "project_id": project_id, "job_type": "reel_generation", "status": "pending"}
+    return {
+        "id": job_id, "project_id": project_id, "job_type": "reel_generation", "status": "pending",
+        "progress": 0, "result_json": None, "error": None, "started_at": None, "completed_at": None,
+    }
 
 
 @router.get("/reels/jobs/{job_id}")

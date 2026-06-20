@@ -39,9 +39,11 @@ async def run_agents(
             results = await orchestrator.run_pipeline(project_id, agent_names, context)
             await session.commit()
             await update_progress(100, "Agent pipeline complete")
+            agent_statuses = {k: "completed" if v.success else "failed" for k, v in results.items()}
             return {
                 "agents_run": list(results.keys()),
-                "results": {k: "success" if v.success else "failed" for k, v in results.items()},
+                "results": agent_statuses,
+                "agent_statuses": agent_statuses,
             }
 
     job_id = await task_queue.submit("agent_run", project_id, _run)

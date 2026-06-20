@@ -16,16 +16,6 @@ from models.schemas import JobResponse, VoiceListResponse, VoiceoverGenerateRequ
 router = APIRouter(tags=["voiceover"])
 
 
-AVAILABLE_VOICES = [
-    {"id": "alloy", "name": "Alloy", "language": "en", "gender": "neutral"},
-    {"id": "echo", "name": "Echo", "language": "en", "gender": "male"},
-    {"id": "fable", "name": "Fable", "language": "en", "gender": "female"},
-    {"id": "nova", "name": "Nova", "language": "en", "gender": "female"},
-    {"id": "onyx", "name": "Onyx", "language": "en", "gender": "male"},
-    {"id": "shimmer", "name": "Shimmer", "language": "en", "gender": "female"},
-]
-
-
 @router.get("/voiceover/jobs/{job_id}")
 async def get_voiceover_job_status(job_id: str):
     """Get status of a voiceover job from the in-memory task queue."""
@@ -42,10 +32,12 @@ async def get_voiceover_job_status(job_id: str):
     }
 
 
-@router.get("/voiceover/voices", response_model=VoiceListResponse)
+@router.get("/voiceover/voices")
 async def list_voices():
-    """List available TTS voices."""
-    return VoiceListResponse(voices=AVAILABLE_VOICES)
+    """List available TTS voices from the TTS service."""
+    from modules.voiceover_studio import list_voices as do_list
+    voices = await do_list()
+    return {"voices": [{"id": v.id, "name": v.name, "language": v.language, "gender": getattr(v, "gender", "neutral")} for v in voices]}
 
 
 @router.post("/projects/{project_id}/voiceover", response_model=JobResponse)
@@ -74,7 +66,10 @@ async def generate_voiceover(
             return {"id": result.id}
 
     job_id = await task_queue.submit("voiceover_generation", project_id, _run)
-    return {"id": job_id, "project_id": project_id, "job_type": "voiceover_generation", "status": "pending"}
+    return {
+        "id": job_id, "project_id": project_id, "job_type": "voiceover_generation", "status": "pending",
+        "progress": 0, "result_json": None, "error": None, "started_at": None, "completed_at": None,
+    }
 
 
 @router.get("/projects/{project_id}/voiceovers", response_model=list[VoiceoverResponse])
